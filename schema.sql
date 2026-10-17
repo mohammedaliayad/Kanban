@@ -16,8 +16,12 @@ alter table public.cards enable row level security;
 alter table public.config enable row level security;
 
 -- Each signed-in person only ever sees and changes their own rows.
+drop policy if exists "own cards" on public.cards;
 create policy "own cards" on public.cards for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "own config" on public.config;
 create policy "own config" on public.config for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Live updates between phone and laptop.
-alter publication supabase_realtime add table public.cards, public.config;
+do $$ begin
+  alter publication supabase_realtime add table public.cards, public.config;
+exception when duplicate_object then null; end $$;
