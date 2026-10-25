@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792915882">
+<meta name="build" content="1792916053">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -126,6 +126,7 @@ main { padding-block: 14px 32px; }
 .week .d.sel .dadd:hover { background: color-mix(in srgb, var(--bg) 15%, transparent); }
 .week .d.is-today:not(.sel) { border-color: var(--accent); color: var(--accent); }
 .cal { display: grid; gap: 10px; margin-top: 18px; }
+.todaybtn { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .calbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .calnav { display: flex; align-items: center; gap: 6px; }
 .calnav h2 { font-family: var(--f-display); font-size: 19px; margin: 0 0 0 6px; }
@@ -560,9 +561,19 @@ function renderChips() {
   $("#pageSub").textContent = fmtDay(todayIso(), { weekday: "long", day: "numeric", month: "long" }) + (filter !== "all" ? " · " + boardOf(filter).name : "");
 }
 
+// Some calendars get the same event written twice (e.g. two prayer-time apps a minute apart). Show one.
+function dedupeEvents(list) {
+  const seen = new Map();
+  return list.filter(c => {
+    if (c.src !== "gcal") return true;
+    const k = c.board + "|" + (c.title || "").trim().toLowerCase() + "|" + c.day, m = c.time ? mins(c.time) : -1;
+    const prev = seen.get(k) || []; if (prev.some(x => Math.abs(x - m) <= 5)) return false;
+    seen.set(k, [...prev, m]); return true;
+  });
+}
 function render() {
   renderChips();
-  const shown = cards.filter(c => filter === "all" || c.board === filter);
+  const shown = dedupeEvents(cards.filter(c => filter === "all" || c.board === filter));
   const dash = view === "dash";
   $("#views").classList.toggle("dash", dash);
   if (loaded) {
@@ -672,7 +683,7 @@ function renderToday(shown) {
     </div>`}
     <div class="dayhead">
       <div class="dnav"><button class="btn nav" type="button" data-week="-1" aria-label="Previous day">‹</button><div><h2>${title}, ${fmtDay(selDay, { day: "numeric", month: "long" })}</h2><div class="hint">${left} to do · ${planned.length - left} done</div></div><button class="btn nav" type="button" data-week="1" aria-label="Next day">›</button></div>
-      <div class="r">${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
+      <div class="r">${selDay !== t ? `<button class="btn sm todaybtn" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
     <div class="daycols"><div class="daymain">
     ${dayEvents.length ? `<section class="sect agenda"><h3>Events</h3>${dayEvents.map(agItem).join("")}</section>` : ""}
@@ -731,7 +742,7 @@ function renderCal(shown) {
   const bar = `<div class="calbar"><div class="calnav">
       <button class="btn nav" type="button" data-calnav="-1" aria-label="${week ? "Previous day" : "Previous month"}">‹</button>
       <button class="btn nav" type="button" data-calnav="1" aria-label="${week ? "Next day" : "Next month"}">›</button>
-      ${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Today</button>` : ""}
+      <button class="btn sm todaybtn" type="button" data-goto="${t}">Today</button>
       <h2>${fmtDay(selDay, { month: "long", year: "numeric" })}</h2></div>
     <div class="seg"><button class="btn sm" type="button" data-calmode="day" aria-pressed="${one}">Day</button><button class="btn sm" type="button" data-calmode="week" aria-pressed="${week && !one}">Week</button><button class="btn sm" type="button" data-calmode="month" aria-pressed="${!week}">Month</button></div></div>`;
   if (week) {
@@ -791,7 +802,7 @@ $("#today").addEventListener("click", async e => {
   if (el.dataset.day) { selDay = el.dataset.day; return render(); }
   if (el.dataset.addday) { selDay = el.dataset.addday; render(); return openCard(null, newPreset({ day: selDay })); }
   if (el.dataset.week) { selDay = addDays(selDay, +el.dataset.week); return render(); }
-  if (el.dataset.goto) { selDay = el.dataset.goto; return render(); }
+  if (el.dataset.goto) { selDay = el.dataset.goto; render(); const sc = $("#today .cal-scroll"); if (sc) { const n = new Date(); sc.scrollTop = Math.max(0, (n.getHours() - 1) * HOUR); } return; }
   if (el.dataset.open) return openCard(el.dataset.open);
   if (el.dataset.del) return deleteTasks([el.dataset.del]);
   if (readOnly) return;
