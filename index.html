@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792916835">
+<meta name="build" content="1792917434">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -132,6 +132,7 @@ main { padding-block: 14px 32px; }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
 .srow .sname { min-width: 0; font-size: 14px; } .srow .dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
 .srow .seg { flex: none; }
+.greport { font-size: 13.5px; display: grid; gap: 6px; margin-top: 8px; } .greport p { margin: 0; } .greport details { margin: 2px 0 0 12px; } .greport summary { cursor: pointer; }
 .calbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .calnav { display: flex; align-items: center; gap: 6px; }
 .calnav h2 { font-family: var(--f-display); font-size: 19px; margin: 0 0 0 6px; }
@@ -1138,13 +1139,21 @@ async function openGoogle() {
   catch (e) { let m = e.message || ""; try { m = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : m); } catch (er) {} return openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Couldn't reach the google-oauth function (${esc(m)}). Check it's deployed with Verify JWT off.</p><div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`), ($("#gx").onclick = closeSheet); }
   const byBoard = Object.fromEntries(accounts.map(a => [a.board, a.email]));
   openSheet(`<h3>Google Calendar and Tasks</h3>
-    <p class="hint">Each area syncs both ways with its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before. Your Google events (2 weeks back to a year ahead) and Google Tasks come into Orbit, and changes on either side carry across.</p>
-    <button class="btn sm" type="button" id="gpull">Sync from Google now</button>
+    <p class="hint">Each area syncs both ways with its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before. Your Google events (2 weeks back to 6 months ahead) and Google Tasks come into Orbit, and changes on either side carry across.</p>
+    <button class="btn sm" type="button" id="gpull">Sync from Google now</button><div id="greport" class="greport"></div>
     <div class="list">${config.boards.map(b => `<div class="item"><span class="dot" style="background:${esc(b.color)}"></span><span style="flex:1"><b>${esc(b.name)}</b><br><span class="hint">${byBoard[b.id] ? "Connected: " + esc(byBoard[b.id]) : "Not connected"}</span></span>
       ${byBoard[b.id] ? `<button class="btn sm" type="button" data-gdis="${esc(b.id)}">Disconnect</button>` : `<button class="btn sm primary" type="button" data-gcon="${esc(b.id)}">Connect</button>`}</div>`).join("")}</div>
     <div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`);
   $("#gx").onclick = closeSheet;
-  $("#gpull").onclick = async () => { $("#gpull").disabled = true; const n = await pullGoogle(true); toast(n < 0 ? "Sync failed: " + (pullErr || "unknown error") : n ? `Brought in ${n} change${n > 1 ? "s" : ""} from Google` : "Everything's up to date"); closeSheet(); };
+  $("#gpull").onclick = async () => {
+    $("#gpull").disabled = true; $("#gpull").textContent = "Syncing…";
+    const n = await pullGoogle(true);
+    $("#gpull").disabled = false; $("#gpull").textContent = "Sync from Google now";
+    const head = n < 0 ? `Sync failed: ${esc(pullErr || "unknown error")}` : n ? `Brought in ${n} change${n > 1 ? "s" : ""} from Google.` : "Everything's up to date.";
+    // Show what each Google account returned, so anything missing can be traced to its list.
+    $("#greport").innerHTML = `<p><b>${head}</b></p>` + (pullReport || []).map(r => `<div class="grep"><b>${esc(boardOf(r.board).name)}</b>: ${r.error ? esc(r.error) : `${esc(String(r.events))} calendar events, ` + r.lists.map(l => `<details><summary>${esc(l.name)}: ${esc(String(l.open))} open tasks</summary><div class="hint">${l.titles.map(esc).join(" · ") || "none"}</div></details>`).join("")}</div>`).join("");
+    render();
+  };
   $(".sheet").addEventListener("click", async e => {
     const con = e.target.closest("[data-gcon]"), dis = e.target.closest("[data-gdis]");
     try {
@@ -1166,10 +1175,10 @@ let lastPull = 0;
 async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();
-  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; return data?.changed ?? 0; }
+  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; pullReport = data?.report || null; if (data?.error) pullErr = data.error; return data?.changed ?? 0; }
   catch (e) { pullErr = e.message || ""; try { pullErr = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : pullErr); } catch (er) {} return -1; }
 }
-let pullErr = "";
+let pullErr = "", pullReport = null;
 setInterval(() => document.visibilityState === "visible" && pullGoogle(), 5 * 60000);
 // Home screen apps don't reload on their own: when Orbit comes back to the front, load a newer version if one is out.
 async function checkUpdate() {

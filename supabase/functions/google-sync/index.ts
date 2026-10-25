@@ -165,6 +165,8 @@ async function pull(userId: string) {
   const byGoogle = new Map((maps || []).map(m => [m.board + ":" + m.kind[0] + ":" + m.google_id, m]));
   const now = new Date(), from = new Date(now.getTime() - 14 * 864e5).toISOString(), to = new Date(now.getTime() + 183 * 864e5).toISOString();
   let changed = 0;
+  // What each account returned, shown in the app so missing items can be traced.
+  const report: any[] = [];
   // Writes are queued and sent in bulk at the end: a big calendar has thousands of event instances, and one
   // request per item runs the function out of time. Map rows carry the hash Orbit would send, so the push side sees nothing to do.
   const mapQ = new Map<string, any>(), cardQ = new Map<string, any>(), dropQ = new Set<string>();
@@ -179,9 +181,11 @@ async function pull(userId: string) {
   const drop = async (id: string) => { dropQ.add(id); cardQ.delete(id); cards.delete(id); changed++; };
 
   for (const { board } of accs || []) {
-    const tok = await accessToken(userId, board); if (!tok) continue;
+    const tok = await accessToken(userId, board); if (!tok) { report.push({ board, error: "Couldn't sign in to Google. Reconnect this area." }); continue; }
+    const rep: any = { board, lists: [] }; report.push(rep);
 
     const events = await listAll(tok, `${CAL}?singleEvents=true&showDeleted=true&maxResults=2500&timeMin=${encodeURIComponent(from)}&timeMax=${encodeURIComponent(to)}`, "items");
+    rep.events = events ? events.filter((e: any) => e.status !== "cancelled").length : "failed";
     for (const e of events || []) {
       const m = byGoogle.get(board + ":e:" + e.id) || byGoogle.get(board + ":d:" + e.id);
       const gone = e.status === "cancelled";
@@ -219,6 +223,7 @@ async function pull(userId: string) {
       const base = l.id === defId || !l.id ? TASKS : `${LISTS}/lists/${l.id}/tasks`;
       const open = await listAll(tok, `${base}?showCompleted=false&maxResults=100`, "items");
       const recent = await listAll(tok, `${base}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+      rep.lists.push({ name: l.title || "Tasks", open: open ? open.length : "failed", titles: (open || []).map((t: any) => t.title).filter(Boolean).slice(0, 60) });
       for (const t of new Map([...(open || []), ...(recent || [])].map(t => [t.id, t])).values()) tasks.push({ ...t, gid: base === TASKS ? t.id : `${l.id}~${t.id}` });
     }
     for (const t of tasks) {
@@ -247,7 +252,7 @@ async function pull(userId: string) {
   for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
   for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
   for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
-  return changed;
+  return { changed, report };
 }
 
 Deno.serve(async (req) => {
@@ -257,8 +262,8 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("authorization") || "").replace(/^Bearer /, "");
     const { data: { user } } = await admin.auth.getUser(jwt);
     if (!user) return new Response(JSON.stringify({ error: "not signed in" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
-    const changed = await pull(user.id).catch(e => { console.error("pull error", e); return -1; });
-    return new Response(JSON.stringify({ changed }), { headers: { ...cors, "Content-Type": "application/json" } });
+    const out = await pull(user.id).catch(e => { console.error("pull error", e); return { changed: -1, error: String(e?.message || e) }; });
+    return new Response(JSON.stringify(out), { headers: { ...cors, "Content-Type": "application/json" } });
   }
   const ids: string[] = body.ids || (body.id ? [body.id] : []);
   for (const id of ids.slice(0, 500)) { try { await syncCard(String(id)); } catch (e) { console.error("sync error", id, e); } }
