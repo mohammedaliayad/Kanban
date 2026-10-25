@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792916330">
+<meta name="build" content="1792916586">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -511,7 +511,11 @@ async function spawnNext(c) {
   toast(`Repeats: next one added for ${fmtDay(day, { weekday: "short", day: "numeric", month: "short" })}`);
   await saveCard(c); await saveCard(n);
 }
-function newPreset(extra) { return { board: filter !== "all" ? filter : config.boards[0]?.id, col: (config.columns.find(x => x.id === "next") || config.columns[0]).id, ...extra }; }
+// Two kinds of task: Kanban projects (big, ongoing work) and reminders (quick to-dos that live on the calendar).
+// Older cards with no kind are projects, except ones that came from Google Tasks.
+const KINDS = [{ id: "reminder", name: "Reminder" }, { id: "project", name: "Kanban project" }];
+const isReminder = c => c.kind === "reminder" || (!c.kind && c.src === "gtask");
+function newPreset(extra) { return { kind: "reminder", board: filter !== "all" ? filter : config.boards[0]?.id, col: (config.columns.find(x => x.id === "next") || config.columns[0]).id, ...extra }; }
 
 // Quick-add parser: "#board", "!" for urgent, and today/tomorrow/weekday/dd-mm for due date.
 function parseQuick(text) {
@@ -592,10 +596,11 @@ function render() {
     $("#pBoard").hidden = !(dash || view === "kanban" || view === "matrix"); $("#pMatrix").hidden = !dash;
   }
   const tasks = shown.filter(c => c.src !== "gcal"); // Google Calendar events show on the calendar only
+  const projects = tasks.filter(c => !isReminder(c)); // reminders stay off the Kanban and priority boards
   if (dash || view === "today") renderToday(shown);
-  if (dash) { renderStats(tasks); renderKanban($("#board"), tasks, false); renderKanban($("#matrix"), tasks, true); return; }
+  if (dash) { renderStats(tasks); renderKanban($("#board"), projects, false); renderKanban($("#matrix"), projects, true); return; }
   if (view === "today") return;
-  renderKanban($("#board"), tasks, view === "matrix");
+  renderKanban($("#board"), projects, view === "matrix");
 }
 
 function renderStats(shown) {
@@ -703,7 +708,7 @@ function renderToday(shown) {
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
     ${full ? "" : agendaHTML(shown)}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
-    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your board (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
+    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your list (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
     </div></div>
     ${full ? renderCal(shown) : ""}`;
   const sc = $("#today .cal-scroll");
@@ -943,10 +948,10 @@ boards.forEach(el => el.addEventListener("click", async e => {
     render(); return saveCard(c); }
   const dl = e.target.closest("[data-del]"); if (dl) { e.stopPropagation(); return deleteTasks([dl.dataset.del]); }
   if (e.target.closest("[data-cleardone]")) return deleteTasks(cards.filter(c => c.col === "done" && (filter === "all" || c.board === filter)).map(c => c.id));
-  const nc = e.target.closest("[data-newcol]"); if (nc) return openCard(null, newPreset({ col: nc.dataset.newcol }));
+  const nc = e.target.closest("[data-newcol]"); if (nc) return openCard(null, newPreset({ kind: "project", col: nc.dataset.newcol }));
   const c = e.target.closest(".card"); if (c) openCard(c.dataset.id);
 }));
-$("#newTask").onclick = () => openCard(null, newPreset(view === "today" ? { day: selDay } : { col: config.columns[0].id }));
+$("#newTask").onclick = () => openCard(null, newPreset(view === "kanban" || view === "matrix" ? { kind: "project", col: config.columns[0].id } : { day: selDay }));
 
 function openSheet(html) { const bg = $("#sheetBg"); bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`; bg.hidden = false; }
 function closeSheet() { $("#sheetBg").hidden = true; $("#sheetBg").innerHTML = ""; }
@@ -962,8 +967,9 @@ function openCard(id, preset) {
   openSheet(`
     <h3>${isNew ? "New task" : "Edit task"}</h3>
     <div class="field"><label for="f-title">What needs doing?</label><input id="f-title" type="text" value="${esc(c.title)}" placeholder="e.g. Send quote to client" ${dis}></div>
+    <div class="field"><label>What kind?</label>${seg("f-kind", KINDS, isReminder(c) ? "reminder" : "project")}<span class="hint" id="f-kind-hint"></span></div>
     <div class="field"><label>Where does it go?</label>${seg("f-board", config.boards, c.board)}</div>
-    <div class="field"><label>Column</label>${seg("f-col", config.columns, c.col)}</div>
+    <div class="field" id="f-colwrap"><label>Column</label>${seg("f-col", config.columns, c.col)}</div>
     <div class="row2">
       <div class="field"><label for="f-day">On my day list for</label><input id="f-day" type="date" value="${esc(c.day || "")}" ${dis}>
         ${readOnly ? "" : `<div class="seg"><button class="btn sm" type="button" id="f-day-today">Today</button><button class="btn sm" type="button" id="f-day-tmr">Tomorrow</button><button class="btn sm" type="button" id="f-day-clear">None</button></div>`}</div>
@@ -986,7 +992,8 @@ function openCard(id, preset) {
       ${readOnly || isNew ? "<span></span>" : `<button class="btn danger" id="f-del" type="button">Delete</button>`}
       <div class="r"><button class="btn" id="f-cancel" type="button">${isNew ? "Cancel" : "Close"}</button>${readOnly ? "" : `<button class="btn primary" id="f-save" type="button">${isNew ? "Add task" : "Save"}</button>`}</div>
     </div>`);
-  let col = c.col, board = c.board, repeat = c.repeat || "";
+  let col = c.col, board = c.board, repeat = c.repeat || "", kind = isReminder(c) ? "reminder" : "project";
+  const showKind = () => { $("#f-colwrap").hidden = kind === "reminder"; $("#f-kind-hint").textContent = kind === "reminder" ? "A quick to-do. Shows on your calendar and day list, not on the Kanban board." : "Big or ongoing work. Lives on the Kanban board."; };
   let items = (c.checklist || []).map(i => ({ ...i }));
   // On an existing task, checklist changes save straight away so ticking items needs no Save tap.
   const drawCl = () => {
@@ -1012,6 +1019,7 @@ function openCard(id, preset) {
   pick("#f-col", v => col = v);
   pick("#f-board", v => board = v);
   pick("#f-rep", v => repeat = v);
+  pick("#f-kind", v => { kind = v; showKind(); }); showKind();
   $("#f-cancel").onclick = closeSheet;
   if (readOnly) return;
   if (isNew) setTimeout(() => $("#f-title")?.focus(), 30);
@@ -1026,6 +1034,7 @@ function openCard(id, preset) {
     if (isNew || col !== c.col) c.order = Math.min(0, ...cards.filter(x => x.col === col).map(x => x.order ?? 0)) - 1;
     const time = $("#f-time").value || null; let endTime = time ? ($("#f-end").value || null) : null; if (endTime && endTime <= time) endTime = null;
     const guests = $("#f-guests").value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+    c.kind = kind;
     Object.assign(c, { title, col, board, time, endTime, guests, due: $("#f-due").value || null, urgent: $("#f-urgent").checked, important: $("#f-important").checked, note: $("#f-note").value, checklist: items.map(i => ({ ...i })), repeat: repeat || null });
     if (!repeat) delete c.repeatSpawned;
     const day = $("#f-day").value || null;
@@ -1244,7 +1253,7 @@ function openAI() {
   $("#ai-text").oninput = () => { if (found.length) { found = []; $("#ai-out").innerHTML = ""; $("#ai-go").textContent = "Sort it"; } };
   $("#ai-go").onclick = async () => {
     if (found.length) {
-      const made = found.map((t, i) => ({ id: "c" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), title: t.title, board: config.boards.some(b => b.id === t.board) ? t.board : config.boards[0].id,
+      const made = found.map((t, i) => ({ kind: t.day ? "reminder" : "project", id: "c" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), title: t.title, board: config.boards.some(b => b.id === t.board) ? t.board : config.boards[0].id,
         col: config.columns.some(c => c.id === t.col) ? t.col : config.columns[0].id, urgent: !!t.urgent, important: !!t.important, due: t.due || null, day: t.day || null, time: t.day && t.time ? t.time : null,
         endTime: t.day && t.time && t.endTime > t.time ? t.endTime : null, repeat: t.repeat || null, note: t.note || "", guests: t.guests || [], checklist: (t.checklist || []).map(x => ({ t: x, done: false })),
         order: Math.min(0, ...cards.map(x => x.order ?? 0)) - 1 - i, dayOrder: 999 + i, created: new Date().toISOString() }));
