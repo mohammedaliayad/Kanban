@@ -14,6 +14,9 @@ const APP_URL = Deno.env.get("APP_URL") || "https://orbitai.com.au";
 const TZ = "Australia/Sydney";
 const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const TASKS = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
+const LISTS = "https://tasks.googleapis.com/tasks/v1";
+// Tasks in the default list keep their plain id; tasks in other lists are stored as "<listId>~<taskId>".
+const taskUrl = (gid: string) => gid.includes("~") ? `${LISTS}/lists/${gid.split("~")[0]}/tasks/${gid.split("~")[1]}` : `${TASKS}/${gid}`;
 
 type Doc = { title: string; board: string; col: string; due?: string | null; day?: string | null; endDay?: string | null; time?: string | null; endTime?: string | null; note?: string; urgent?: boolean; src?: string; guests?: string[]; prevCol?: string; doneAt?: string; [k: string]: unknown };
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info" };
@@ -83,7 +86,7 @@ function wanted(d: Doc): Record<string, Want> {
 async function remove(m: { card_id: string; kind: string; user_id: string; board: string; google_id: string }) {
   const tok = await accessToken(m.user_id, m.board);
   if (tok) {
-    const url = m.kind === "task" ? `${TASKS}/${m.google_id}` : `${CAL}/${m.google_id}?sendUpdates=none`;
+    const url = m.kind === "task" ? taskUrl(m.google_id) : `${CAL}/${m.google_id}?sendUpdates=none`;
     const r = await g(tok, "DELETE", url);
     if (!r.ok && r.status !== 404 && r.status !== 410) { console.error("delete failed", r.status, await r.text()); return; }
   }
@@ -114,7 +117,7 @@ async function syncCard(id: string) {
     if (m && m.hash === w.hash) continue;
     let r: Response;
     if (kind === "task") {
-      r = m ? await g(tok, "PATCH", `${TASKS}/${m.google_id}`, w.body) : await g(tok, "POST", TASKS, w.body);
+      r = m ? await g(tok, "PATCH", taskUrl(m.google_id), w.body) : await g(tok, "POST", TASKS, w.body);
       if (m && (r.status === 404 || r.status === 410)) r = await g(tok, "POST", TASKS, w.body);
     } else {
       const eid = m?.google_id || eventId(kind, id);
@@ -206,12 +209,20 @@ async function pull(userId: string) {
       if (!doc || JSON.stringify(wanted(next).event?.hash) !== JSON.stringify(wanted(doc).event?.hash)) await put(id, next, "event", e.id);
     }
 
-    // Every open task however old, plus anything completed or deleted lately.
-    const open = await listAll(tok, `${TASKS}?showCompleted=false&maxResults=100`, "items");
-    const recent = await listAll(tok, `${TASKS}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
-    const tasks = open || recent ? [...new Map([...(open || []), ...(recent || [])].map(t => [t.id, t])).values()] : null;
-    for (const t of tasks || []) {
-      const m = byGoogle.get(board + ":t:" + t.id);
+    // Every list (Google Calendar shows them all): every open task however old, plus anything completed or deleted lately.
+    const found = await listAll(tok, `${LISTS}/users/@me/lists?maxResults=100`, "items");
+    // The default list comes first in Google's list order; ask for it by name too in case that ever changes.
+    const defId = (await (await g(tok, "GET", `${LISTS}/users/@me/lists/@default`)).json().catch(() => ({})))?.id || found?.[0]?.id;
+    const lists = found?.length ? found : [{ id: defId }];
+    const tasks: any[] = [];
+    for (const l of lists) {
+      const base = l.id === defId || !l.id ? TASKS : `${LISTS}/lists/${l.id}/tasks`;
+      const open = await listAll(tok, `${base}?showCompleted=false&maxResults=100`, "items");
+      const recent = await listAll(tok, `${base}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+      for (const t of new Map([...(open || []), ...(recent || [])].map(t => [t.id, t])).values()) tasks.push({ ...t, gid: base === TASKS ? t.id : `${l.id}~${t.id}` });
+    }
+    for (const t of tasks) {
+      const m = byGoogle.get(board + ":t:" + t.gid);
       const gone = !!t.deleted, done = t.status === "completed", day = t.due ? String(t.due).slice(0, 10) : null;
       if (m && !m.card_id.startsWith("gt-")) {
         const doc = cards.get(m.card_id); if (!doc) continue;
@@ -221,15 +232,15 @@ async function pull(userId: string) {
         if (!done && doc.col === "done") { next.col = doc.prevCol && doc.prevCol !== "done" ? doc.prevCol : "next"; delete next.doneAt; }
         if (day && day !== doc.day) next.day = day;
         if (t.title && strip(t.title) !== doc.title) next.title = strip(t.title);
-        if (JSON.stringify(next) !== JSON.stringify(doc)) await put(m.card_id, next, "task", t.id);
+        if (JSON.stringify(next) !== JSON.stringify(doc)) await put(m.card_id, next, "task", t.gid);
         continue;
       }
-      const id = `gt-${board}-${t.id}`, doc = cards.get(id);
+      const id = `gt-${board}-${t.gid}`, doc = cards.get(id);
       if (gone || (!doc && (done || !t.title))) { if (gone && doc) await drop(id); continue; }
       const next: Doc = { ...(doc || { col: "inbox", order: -Date.now() / 1e6, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gtask", board, title: t.title, note: t.notes || "", day } as Doc;
       if (done && next.col !== "done") { next.prevCol = next.col; next.col = "done"; next.doneAt = new Date().toISOString(); }
       if (!done && next.col === "done") { next.col = next.prevCol && next.prevCol !== "done" ? next.prevCol : "inbox"; delete next.doneAt; }
-      if (JSON.stringify(next) !== JSON.stringify(doc)) await put(id, next, "task", t.id);
+      if (JSON.stringify(next) !== JSON.stringify(doc)) await put(id, next, "task", t.gid);
     }
   }
   const chunks = <T,>(a: T[]) => Array.from({ length: Math.ceil(a.length / 500) }, (_, i) => a.slice(i * 500, i * 500 + 500));
