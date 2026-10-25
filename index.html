@@ -94,6 +94,22 @@ main { padding-block: 14px 32px; }
 .pill.soon { color: var(--soon); }
 .note-ic { font-family: var(--f-mono); }
 .today { display: grid; gap: 14px; }
+.ptitle { display: none; font-family: var(--f-display); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
+.views.dash { display: grid; gap: 22px; }
+.views.dash .ptitle { display: block; }
+.views.dash .daycols { grid-template-columns: 1fr; }
+.views.dash .board:not(.matrix) { grid-auto-columns: minmax(220px, 1fr); }
+.views.dash .panel { min-width: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.stat b { font-family: var(--f-display); font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 12px; }
+.stat.warn b { color: var(--urgent); }
+.stat.good b { color: var(--accent); }
+@media (min-width: 1000px) {
+  .views.dash { grid-template-columns: minmax(360px, 2fr) minmax(0, 3fr); grid-template-areas: "stats stats" "today board" "today matrix"; align-items: start; }
+  .views.dash .p-stats { grid-area: stats; } .views.dash .p-today { grid-area: today; } .views.dash .p-board { grid-area: board; } .views.dash .p-matrix { grid-area: matrix; }
+}
 .daycols { display: grid; gap: 14px; align-items: start; }
 .dayside { display: grid; gap: 14px; }
 @media (min-width: 1000px) { .daycols { grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: 24px; } .week .num { font-size: 22px; } }
@@ -216,8 +232,12 @@ details.sect[open] summary { margin-bottom: 6px; }
 
 <main class="wrap">
   <div id="state" class="state">Loading your board…</div>
-  <div class="board" id="board" hidden></div>
-  <div class="today" id="today" hidden></div>
+  <div class="views" id="views">
+    <section class="panel p-stats" id="pStats" hidden><div class="stats" id="stats"></div></section>
+    <section class="panel p-today" id="pToday" hidden><h3 class="ptitle">My day</h3><div class="today" id="today"></div></section>
+    <section class="panel p-board" id="pBoard" hidden><h3 class="ptitle">Kanban</h3><div class="board" id="board"></div></section>
+    <section class="panel p-matrix" id="pMatrix" hidden><h3 class="ptitle">Urgent / Important</h3><div class="board matrix" id="matrix"></div></section>
+  </div>
 </main>
 <div id="toast" class="toast" hidden></div>
 <div id="sheetBg" class="sheet-bg" hidden></div>
@@ -342,7 +362,7 @@ function dueInfo(due) {
 function renderChips() {
   const counts = {}; cards.forEach(c => { if (c.col !== "done") counts[c.board] = (counts[c.board] || 0) + 1; });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  let h = `<span class="seg view"><button class="chip" data-v="today" aria-pressed="${view === "today"}">My day</button><button class="chip" data-v="kanban" aria-pressed="${view === "kanban"}">Kanban</button><button class="chip" data-v="matrix" aria-pressed="${view === "matrix"}">Urgent / Important</button></span><span class="sep"></span>`;
+  let h = `<span class="seg view"><button class="chip" data-v="dash" aria-pressed="${view === "dash"}">Dashboard</button><button class="chip" data-v="today" aria-pressed="${view === "today"}">My day</button><button class="chip" data-v="kanban" aria-pressed="${view === "kanban"}">Kanban</button><button class="chip" data-v="matrix" aria-pressed="${view === "matrix"}">Urgent / Important</button></span><span class="sep"></span>`;
   h += `<button class="chip" data-f="all" aria-pressed="${filter === "all"}">All <span class="n">${total}</span></button>`;
   for (const b of config.boards) h += `<button class="chip" data-f="${esc(b.id)}" aria-pressed="${filter === b.id}"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)} <span class="n">${counts[b.id] || 0}</span></button>`;
   if (!readOnly) h += `<button class="chip ghost" id="editBoards">Edit boards</button><button class="chip ghost" id="googleBtn">Google</button>`;
@@ -352,11 +372,35 @@ function renderChips() {
 function render() {
   renderChips();
   const shown = cards.filter(c => filter === "all" || c.board === filter);
-  const board = $("#board");
-  if (loaded) { board.hidden = view === "today"; $("#today").hidden = view !== "today"; }
-  if (view === "today") return renderToday(shown);
-  board.classList.toggle("matrix", view === "matrix");
-  if (view === "matrix") {
+  const dash = view === "dash";
+  $("#views").classList.toggle("dash", dash);
+  if (loaded) {
+    $("#pStats").hidden = !dash; $("#pToday").hidden = !(dash || view === "today");
+    $("#pBoard").hidden = !(dash || view === "kanban" || view === "matrix"); $("#pMatrix").hidden = !dash;
+  }
+  if (dash || view === "today") renderToday(shown);
+  if (dash) { renderStats(shown); renderKanban($("#board"), shown, false); renderKanban($("#matrix"), shown, true); return; }
+  if (view === "today") return;
+  renderKanban($("#board"), shown, view === "matrix");
+}
+
+function renderStats(shown) {
+  const t = todayIso(), wk = addDays(t, 7), open = shown.filter(c => c.col !== "done");
+  const n = { today: open.filter(c => c.day === t).length, overdue: open.filter(c => c.due && c.due < t).length,
+    week: open.filter(c => c.due && c.due >= t && c.due <= wk).length, doFirst: open.filter(c => c.urgent && c.important).length,
+    done: shown.filter(c => c.col === "done" && (c.doneAt || "").slice(0, 10) === t).length };
+  $("#stats").innerHTML = `
+    <button class="stat" type="button" data-go="today"><b>${n.today}</b><span>On today's list</span></button>
+    <button class="stat ${n.overdue ? "warn" : ""}" type="button" data-go="kanban"><b>${n.overdue}</b><span>Overdue</span></button>
+    <button class="stat" type="button" data-go="kanban"><b>${n.week}</b><span>Due in the next 7 days</span></button>
+    <button class="stat ${n.doFirst ? "warn" : ""}" type="button" data-go="matrix"><b>${n.doFirst}</b><span>Do first (urgent + important)</span></button>
+    <button class="stat good" type="button" data-go="today"><b>${n.done}</b><span>Done today</span></button>`;
+}
+$("#stats").addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; view = g.dataset.go; try { localStorage.setItem("kb.view", view); } catch (er) {} render(); window.scrollTo(0, 0); });
+
+function renderKanban(board, shown, matrix) {
+  board.classList.toggle("matrix", matrix);
+  if (matrix) {
     const open = shown.filter(c => c.col !== "done");
     board.innerHTML = QUADS.map(q => {
       const list = open.filter(c => !!c.urgent === q.u && !!c.important === q.i).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -376,6 +420,7 @@ function render() {
   }).join("");
   // Cards whose column was removed land in the first column visually
   const orphan = shown.filter(c => !config.columns.some(col => col.id === c.col));
+  if (!board.querySelector(".column")) return;
   if (orphan.length) board.querySelector(".column").insertAdjacentHTML("beforeend", orphan.map(cardHTML).join(""));
 }
 
@@ -526,10 +571,11 @@ $("#chips").addEventListener("click", e => {
 
 // Drag and drop between columns (desktop). On phones, tap a card and pick its column.
 let dragId = null;
-$("#board").addEventListener("dragstart", e => { const c = e.target.closest(".card"); if (!c) return; dragId = c.dataset.id; c.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
-$("#board").addEventListener("dragend", () => { dragId = null; document.querySelectorAll(".dragging,.over").forEach(el => el.classList.remove("dragging", "over")); });
-$("#board").addEventListener("dragover", e => { const col = e.target.closest(".column"); if (!col || !dragId) return; e.preventDefault(); document.querySelectorAll(".over").forEach(el => el !== col && el.classList.remove("over")); col.classList.add("over"); });
-$("#board").addEventListener("drop", async e => {
+const boards = [$("#board"), $("#matrix")];
+boards.forEach(el => el.addEventListener("dragstart", e => { const c = e.target.closest(".card"); if (!c) return; dragId = c.dataset.id; c.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; }));
+boards.forEach(el => el.addEventListener("dragend", () => { dragId = null; document.querySelectorAll(".dragging,.over").forEach(el => el.classList.remove("dragging", "over")); }));
+boards.forEach(el => el.addEventListener("dragover", e => { const col = e.target.closest(".column"); if (!col || !dragId) return; e.preventDefault(); document.querySelectorAll(".over").forEach(el => el !== col && el.classList.remove("over")); col.classList.add("over"); }));
+boards.forEach(el => el.addEventListener("drop", async e => {
   const col = e.target.closest(".column"); if (!col || !dragId) return; e.preventDefault();
   const card = cards.find(c => c.id === dragId); if (!card) return;
   const siblings = [...col.querySelectorAll(".card")].filter(el => el.dataset.id !== dragId);
@@ -546,9 +592,9 @@ $("#board").addEventListener("drop", async e => {
   card.order = order; render();
   const { id, ...data } = card; await save(id, data);
   if (doneNow) await spawnNext(card);
-});
+}));
 
-$("#board").addEventListener("click", async e => {
+boards.forEach(el => el.addEventListener("click", async e => {
   const td = e.target.closest("[data-today]");
   if (td) { e.stopPropagation(); const c = cards.find(x => x.id === td.dataset.today); if (!c) return; const t = todayIso();
     if (c.day === t) { c.day = null; toast("Taken off today"); } else { planOn(c, t); toast("Added to today"); }
@@ -557,7 +603,7 @@ $("#board").addEventListener("click", async e => {
   if (e.target.closest("[data-cleardone]")) return deleteTasks(cards.filter(c => c.col === "done" && (filter === "all" || c.board === filter)).map(c => c.id));
   const nc = e.target.closest("[data-newcol]"); if (nc) return openCard(null, newPreset({ col: nc.dataset.newcol }));
   const c = e.target.closest(".card"); if (c) openCard(c.dataset.id);
-});
+}));
 $("#newTask").onclick = () => openCard(null, newPreset(view === "today" ? { day: selDay } : { col: config.columns[0].id }));
 
 function openSheet(html) { const bg = $("#sheetBg"); bg.innerHTML = `<div class="sheet" role="dialog" aria-modal="true">${html}</div>`; bg.hidden = false; }
@@ -802,7 +848,7 @@ function openPasteList() {
 $("#pasteList").onclick = openPasteList;
 
 function showLogin(msg) {
-  $("#newTask").hidden = true; $("#pasteList").hidden = true; $("#signOut").hidden = true; $("#board").hidden = true; $("#today").hidden = true;
+  $("#newTask").hidden = true; $("#pasteList").hidden = true; $("#signOut").hidden = true; ["#pStats", "#pToday", "#pBoard", "#pMatrix"].forEach(id => $(id).hidden = true);
   $("#state").hidden = false;
   $("#state").innerHTML = `<form class="login" id="login" autocomplete="on">
     <h2>Sign in</h2>
