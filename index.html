@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792918304">
+<meta name="build" content="1792918345">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1077,6 +1077,23 @@ document.addEventListener("pointerup", async e => {
 });
 document.addEventListener("click", e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
 $("#today").addEventListener("dragstart", e => e.preventDefault());
+
+// Swipe the date strip to change week, or the day grid / month to change day / month (phones).
+let swipe = null;
+$("#today").addEventListener("touchstart", e => {
+  const area = e.target.closest(".cw-head, .week, .oneday .cal-scroll, .cm-row");
+  swipe = area && e.touches.length === 1 && !drag ? { area, x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+}, { passive: true });
+$("#today").addEventListener("touchend", e => {
+  const st = swipe; swipe = null; if (!st || drag) return;
+  const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y;
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  const dir = dx < 0 ? 1 : -1;
+  selDay = st.area.matches(".cm-row") ? addMonths(selDay, dir) : st.area.matches(".oneday .cal-scroll") ? addDays(selDay, dir) : addDays(selDay, 7 * dir);
+  swallowClick = true; setTimeout(() => swallowClick = false, 350);
+  render();
+  $("#today .cw-head, #today .week, #today .cm-row")?.animate([{ transform: `translateX(${dir * 40}px)`, opacity: .4 }, { transform: "none", opacity: 1 }], { duration: 180, easing: "ease-out" });
+}, { passive: true });
 
 // Drag and drop between columns (desktop). On phones, tap a card and pick its column.
 let dragId = null;
