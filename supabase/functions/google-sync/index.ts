@@ -221,8 +221,8 @@ async function pull(userId: string) {
     const tasks: any[] = [];
     for (const l of lists) {
       const base = l.id === defId || !l.id ? TASKS : `${LISTS}/lists/${l.id}/tasks`;
-      const open = await listAll(tok, `${base}?showCompleted=false&maxResults=100`, "items");
-      const recent = await listAll(tok, `${base}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+      const open = await listAll(tok, `${base}?showCompleted=false&showAssigned=true&maxResults=100`, "items");
+      const recent = await listAll(tok, `${base}?showCompleted=true&showHidden=true&showDeleted=true&showAssigned=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
       rep.lists.push({ name: l.title || "Tasks", open: open ? open.length : "failed", titles: (open || []).map((t: any) => t.title).filter(Boolean).slice(0, 60) });
       for (const t of new Map([...(open || []), ...(recent || [])].map(t => [t.id, t])).values()) tasks.push({ ...t, gid: base === TASKS ? t.id : `${l.id}~${t.id}` });
     }
