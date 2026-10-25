@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792915034">
+<meta name="build" content="1792915102">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1040,7 +1040,7 @@ async function openGoogle() {
       ${byBoard[b.id] ? `<button class="btn sm" type="button" data-gdis="${esc(b.id)}">Disconnect</button>` : `<button class="btn sm primary" type="button" data-gcon="${esc(b.id)}">Connect</button>`}</div>`).join("")}</div>
     <div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`);
   $("#gx").onclick = closeSheet;
-  $("#gpull").onclick = async () => { $("#gpull").disabled = true; const n = await pullGoogle(true); toast(n < 0 ? "Couldn't reach Google. Try again." : n ? `Brought in ${n} change${n > 1 ? "s" : ""} from Google` : "Everything's up to date"); closeSheet(); };
+  $("#gpull").onclick = async () => { $("#gpull").disabled = true; const n = await pullGoogle(true); toast(n < 0 ? "Sync failed: " + (pullErr || "unknown error") : n ? `Brought in ${n} change${n > 1 ? "s" : ""} from Google` : "Everything's up to date"); closeSheet(); };
   $(".sheet").addEventListener("click", async e => {
     const con = e.target.closest("[data-gcon]"), dis = e.target.closest("[data-gdis]");
     try {
@@ -1063,8 +1063,9 @@ async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();
   try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; return data?.changed ?? 0; }
-  catch (e) { return -1; }
+  catch (e) { pullErr = e.message || ""; try { pullErr = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : pullErr); } catch (er) {} return -1; }
 }
+let pullErr = "";
 setInterval(() => document.visibilityState === "visible" && pullGoogle(), 5 * 60000);
 // Home screen apps don't reload on their own: when Orbit comes back to the front, load a newer version if one is out.
 async function checkUpdate() {
