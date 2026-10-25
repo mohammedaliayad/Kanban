@@ -192,7 +192,8 @@ async function pull(userId: string) {
       }
       if (e.id.startsWith(ORBIT_PREFIX)) continue;
       const id = `gc-${board}-${e.id}`, doc = cards.get(id);
-      if (gone) { if (doc) await drop(id); continue; }
+      // Working location ("Office", "Home") is a Google status marker, not something to do.
+      if (gone || e.eventType === "workingLocation") { if (doc) await drop(id); continue; }
       if (!e.start) continue;
       const f = fromEvent(e);
       const next: Doc = { ...(doc || { col: "next", order: 0, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gcal", board, title: e.summary || "(No title)", note: e.description || "", guests: guestsOf(e), ...f } as Doc;
