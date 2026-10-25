@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792916719">
+<meta name="build" content="1792916835">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -605,7 +605,7 @@ function render() {
   if (dash || view === "today") renderToday(shown);
   if (dash) { renderStats(tasks); renderKanban($("#board"), projects, false); renderKanban($("#matrix"), projects, true); return; }
   if (view === "today") return;
-  $("#sortbar").hidden = view !== "kanban" || readOnly || !projects.some(c => c.col !== "done");
+  $("#sortbar").hidden = (view !== "kanban" && view !== "matrix") || readOnly || !projects.some(c => c.col !== "done");
   renderKanban($("#board"), projects, view === "matrix");
 }
 
