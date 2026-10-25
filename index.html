@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792916053">
+<meta name="build" content="1792916285">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -149,7 +149,7 @@ main { padding-block: 14px 32px; }
 .cw-all { border-bottom: 1px solid var(--line); min-height: 30px; }
 .cw-adcell { border-left: 1px solid var(--line); padding: 3px 2px; display: grid; gap: 2px; align-content: start; min-width: 0; cursor: pointer; }
 .cal-scroll { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; }
-.cw-grid { position: relative; background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 44px); }
+.cw-grid { position: relative; background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 60px); }
 .cw-hours { position: relative; }
 .cw-hours span { position: absolute; right: 6px; font-size: 10px; color: var(--muted); transform: translateY(-50%); }
 .cw-col { position: relative; border-left: 1px solid var(--line); cursor: pointer; min-width: 0; }
@@ -161,13 +161,20 @@ main { padding-block: 14px 32px; }
 .agenda .ag-day:first-of-type { border-top: 0; }
 .agenda .ag-d { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0; }
 .agenda .ag-it { display: flex; gap: 10px; align-items: baseline; width: 100%; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--ink); border-radius: 6px; padding: 6px 10px; margin: 4px 0; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
-.agenda .ag-t { flex: none; width: 92px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.agenda .ag-t { flex: none; width: 128px; white-space: nowrap; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .agenda .ag-n { min-width: 0; overflow-wrap: anywhere; }
 .agenda .ag-it.task { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--brand); }
 .agenda .ag-it.task .ag-n::before { width: 11px; height: 11px; background: transparent; border: 2px solid var(--a); box-sizing: border-box; }
 .agenda .ag-n::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--a); margin-right: 6px; vertical-align: 1px; }
 .ev { display: block; width: auto; min-width: 0; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 30%, var(--surface)); color: var(--ink); border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 11px; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cw-col .ev { white-space: normal; z-index: 1; }
+.cw-col .ev { white-space: normal; z-index: 1; font-size: 12px; padding: 3px 6px; }
+.cw-col .ev small { font-size: 11px; }
+.cw-col .ev { box-shadow: 0 0 0 1px var(--surface); }
+.cw-col .ev.short { white-space: nowrap; display: flex; gap: 5px; align-items: baseline; }
+.cw-col .ev.short small { display: inline; flex: none; }
+.cw-col .ev:hover, .cw-col .ev:focus-visible { z-index: 4; min-width: 170px; height: auto !important; min-height: 22px; white-space: normal; box-shadow: 0 6px 16px rgba(43,47,51,.22); }
+.cw-col .ev.short:hover { display: block; }
+.cw-col .ev.short:hover small { display: block; }
 .ev::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--a, transparent); margin-right: 4px; vertical-align: 1px; }
 .ev.due::before { display: none; }
 .ev small { display: block; opacity: .75; font-size: 10px; }
@@ -353,7 +360,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 640px) { .sheet .actions { bottom: calc(-22px - env(safe-area-inset-bottom, 0px)); padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); } }
 @media (min-width: 1100px) {
   /* Laptop calendar page: the day's tasks on the left, a tall week/month calendar on the right. */
-  .today.full { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); grid-template-areas: "head cal" "cols cal"; column-gap: 24px; align-items: start; }
+  .today.full { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); grid-template-areas: "head cal" "cols cal"; grid-template-rows: auto 1fr; column-gap: 24px; align-items: start; }
   .today.full > .dayhead { grid-area: head; }
   .today.full > .daycols { grid-area: cols; grid-template-columns: 1fr; }
   .today.full > .cal { grid-area: cal; margin-top: 0; position: sticky; top: 16px; }
@@ -637,7 +644,7 @@ function rowHTML(c, action) {
     <input type="checkbox" data-done="${esc(c.id)}" ${done ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="Mark ${esc(c.title)} done">
     <button class="body" type="button" data-open="${esc(c.id)}"><span class="t">${esc(c.title)}</span>
       <span class="meta"><span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>
-      ${c.src === "gcal" ? `<span class="pill gsrc">Google Calendar</span>` : c.src === "gtask" ? `<span class="pill gsrc">Google Tasks</span>` : ""}${c.time ? `<span class="pill time">${esc(c.time)}${c.endTime ? "–" + esc(c.endTime) : ""}</span>` : ""}${c.guests?.length ? `<span class="tag" title="${esc(c.guests.join(", "))}">👥 ${c.guests.length}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
+      ${c.src === "gcal" ? `<span class="pill gsrc">Google Calendar</span>` : c.src === "gtask" ? `<span class="pill gsrc">Google Tasks</span>` : ""}${c.time ? `<span class="pill time">${tm(c.time)}${c.endTime ? "–" + tm(c.endTime) : ""}</span>` : ""}${c.guests?.length ? `<span class="tag" title="${esc(c.guests.join(", "))}">👥 ${c.guests.length}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
       ${d && !done ? `<span class="pill ${d.cls}">Due ${esc(d.label.toLowerCase() === d.label ? d.label : d.label)}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}</span></button>
     <span class="acts">${action && !readOnly ? action : ""}${readOnly ? "" : `<button class="icon-del" type="button" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</button>`}</span>
@@ -647,7 +654,7 @@ function rowHTML(c, action) {
 function planOn(c, day) { c.day = day; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
 
 // My day: a Google Tasks style list for one date. Cards join a day through their "day" field.
-const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? esc(c.time) + (c.endTime ? "–" + esc(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`;
+const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? tm(c.time) + (c.endTime ? "–" + tm(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`;
 // Dashboard: the next 7 days of events and scheduled tasks, like Google Calendar's schedule view.
 function agendaHTML(shown) {
   const t = todayIso(), days = [...Array(7)].map((_, i) => addDays(t, i));
@@ -704,7 +711,9 @@ function renderToday(shown) {
 // Google Calendar style week (Monday first) and month views, under the day's task list.
 let calMode = window.innerWidth < 700 ? "day" : "week";
 try { calMode = localStorage.getItem("kb.cal") || calMode; } catch (e) {}
-const HOUR = 44;
+const HOUR = 60;
+// 12-hour clock: "16:30" -> "4:30pm"; short drops ":00" for the hour labels ("4pm").
+const tm = (t, short) => { if (!t) return ""; const [h, m] = String(t).split(":").map(Number); const hh = h % 12 || 12, ap = h < 12 || h === 24 ? "am" : "pm"; return esc(short && !m ? hh + ap : hh + ":" + String(m || 0).padStart(2, "0") + ap); };
 const mins = t => { const [h, m] = String(t || "0:0").split(":").map(Number); return h * 60 + (m || 0); };
 const weekStart = s => addDays(s, -((new Date(s + "T00:00:00").getDay() + 6) % 7));
 function addMonths(s, n) {
@@ -715,7 +724,7 @@ function addMonths(s, n) {
 }
 function evChip(c, due) {
   const b = boardOf(c.board);
-  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""}" type="button" data-open="${esc(c.id)}" style="--a:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : c.time ? `<span class="evt">${esc(c.time)} </span>` : ""}${esc(c.title)}</button>`;
+  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""}" type="button" data-open="${esc(c.id)}" style="--a:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : c.time ? `<span class="evt">${tm(c.time)} </span>` : ""}${esc(c.title)}</button>`;
 }
 function dayItems(shown, d) {
   return {
@@ -753,8 +762,8 @@ function renderCal(shown) {
       <div class="cw-row cw-head"><div></div>${strip.map(d => `<button class="cw-day ${d === t ? "is-today" : ""} ${d === selDay ? "sel" : ""}" type="button" data-day="${d}" aria-pressed="${d === selDay}"><span class="wd">${fmtDay(d, { weekday: "short" })}</span><span class="num">${+d.slice(8)}</span></button>`).join("")}</div>
       <div class="cw-row cw-all"><div class="gut">All day</div>${days.map((d, i) => `<div class="cw-adcell" data-slot="${d}">${items[i].due.map(c => evChip(c, true)).join("")}${items[i].allDay.map(c => evChip(c)).join("")}</div>`).join("")}</div>
       <div class="cal-scroll"><div class="cw-row cw-grid" style="height:${24 * HOUR}px">
-        <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${String(h + 1).padStart(2, "0")}:00</span>`).join("")}</div>
-        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(18, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n});width:calc(100% / ${x.n} - 2px)">${esc(x.c.title)}<small>${esc(x.c.time)}${x.c.endTime ? "–" + esc(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
+        <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${tm(h + 1 + ":00", true)}</span>`).join("")}</div>
+        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""} ${x.e - x.s < 45 ? "short" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(22, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n + 1});width:calc(100% - ${x.lane} * 100% / ${x.n + 1} - 2px);z-index:${1 + x.lane}">${esc(x.c.title)}<small>${tm(x.c.time)}${x.c.endTime ? "–" + tm(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
       </div></div></div></section>`;
   }
   const first = selDay.slice(0, 8) + "01", start = weekStart(first);
