@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792916586">
+<meta name="build" content="1792916719">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -127,6 +127,11 @@ main { padding-block: 14px 32px; }
 .week .d.is-today:not(.sel) { border-color: var(--accent); color: var(--accent); }
 .cal { display: grid; gap: 10px; margin-top: 18px; }
 .todaybtn { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.sortbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: color-mix(in srgb, var(--brand) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
+.sortlist { display: grid; gap: 2px; max-height: 55vh; overflow-y: auto; margin: 10px 0; }
+.srow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+.srow .sname { min-width: 0; font-size: 14px; } .srow .dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
+.srow .seg { flex: none; }
 .calbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .calnav { display: flex; align-items: center; gap: 6px; }
 .calnav h2 { font-family: var(--f-display); font-size: 19px; margin: 0 0 0 6px; }
@@ -425,7 +430,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   <div class="views" id="views">
     <section class="panel p-stats" id="pStats" hidden><div class="stats" id="stats"></div></section>
     <section class="panel p-today" id="pToday" hidden><h3 class="ptitle">My day</h3><div class="today" id="today"></div></section>
-    <section class="panel p-board" id="pBoard" hidden><h3 class="ptitle">Kanban</h3><div class="board" id="board"></div></section>
+    <section class="panel p-board" id="pBoard" hidden><h3 class="ptitle">Kanban</h3><div class="sortbar" id="sortbar" hidden><span>Quick to-dos don't need to sit on the board.</span><button class="btn sm primary" type="button" data-act="sort">Sort into reminders and projects</button></div><div class="board" id="board"></div></section>
     <section class="panel p-matrix" id="pMatrix" hidden><h3 class="ptitle">Urgent / Important</h3><div class="board matrix" id="matrix"></div></section>
   </div>
 </main>
@@ -600,6 +605,7 @@ function render() {
   if (dash || view === "today") renderToday(shown);
   if (dash) { renderStats(tasks); renderKanban($("#board"), projects, false); renderKanban($("#matrix"), projects, true); return; }
   if (view === "today") return;
+  $("#sortbar").hidden = view !== "kanban" || readOnly || !projects.some(c => c.col !== "done");
   renderKanban($("#board"), projects, view === "matrix");
 }
 
@@ -886,10 +892,43 @@ document.addEventListener("keydown", e => {
 
 // Navigation and menu actions, shared by the sidebar, phone top bar, tab bar and the phone menu sheet.
 let userEmail = "";
+// One-off tidy: suggest which board cards are really quick reminders, and let the user confirm.
+const QUICK = /^(call|ring|text|sms|email|e-mail|pay|book|buy|order|send|check|follow[ -]?up|remind|renew|cancel|reply|message|msg|ask|confirm|pick ?up|drop ?off|collect|post|transfer|invoice|chase)\b/i;
+function suggestKind(c) {
+  const t = c.title.trim();
+  if ((c.checklist || []).length) return "project";
+  if (QUICK.test(t) || /\bfollow[ -]?up\b/i.test(t)) return "reminder";
+  if (c.col === "doing" || (c.note || "").length > 120) return "project";
+  return c.day || c.time || t.split(/\s+/).length <= 2 ? "reminder" : "project";
+}
+function openSort() {
+  const list = cards.filter(c => c.src !== "gcal" && c.col !== "done" && !isReminder(c)).sort((a, b) => a.board.localeCompare(b.board) || (a.order ?? 0) - (b.order ?? 0));
+  if (!list.length) return toast("Nothing on the board to sort.");
+  const pick = new Map(list.map(c => [c.id, suggestKind(c)]));
+  const row = c => `<div class="srow"><div class="sname"><span class="dot" style="background:${esc(boardOf(c.board).color)}"></span>${esc(c.title)}${(c.checklist || []).length ? ` <span class="hint">☑ ${c.checklist.length}</span>` : ""}</div>
+    <div class="seg" data-sort="${esc(c.id)}">${KINDS.map(k => `<button type="button" class="btn sm" data-k="${k.id}" aria-pressed="${pick.get(c.id) === k.id}">${k.id === "project" ? "Project" : "Reminder"}</button>`).join("")}</div></div>`;
+  const count = () => [...pick.values()].filter(k => k === "reminder").length;
+  openSheet(`<h3>Sort into reminders and projects</h3>
+    <p class="hint">I've guessed for each card: things with a checklist or in Doing stay as projects, quick jobs like calls, payments and checks become reminders. Change any you disagree with. Reminders leave the board but stay on your calendar and lists.</p>
+    <div class="sortlist">${list.map(row).join("")}</div>
+    <div class="actions"><button class="btn" type="button" id="s-x">Cancel</button><button class="btn primary" type="button" id="s-go"></button></div>`);
+  const label = () => { $("#s-go").textContent = `Move ${count()} to reminders`; };
+  label();
+  $(".sortlist").addEventListener("click", e => { const b = e.target.closest("[data-k]"); if (!b) return; const seg = b.parentElement; pick.set(seg.dataset.sort, b.dataset.k);
+    seg.querySelectorAll("[data-k]").forEach(x => x.setAttribute("aria-pressed", x === b)); label(); });
+  $("#s-x").onclick = closeSheet;
+  $("#s-go").onclick = async () => {
+    const changed = list.filter(c => (c.kind || "project") !== pick.get(c.id) || !c.kind);
+    for (const c of changed) c.kind = pick.get(c.id);
+    closeSheet(); render(); toast(`Sorted: ${count()} reminders, ${list.length - count()} projects`);
+    for (const c of changed) await saveCard(c);
+  };
+}
 function openMenu() {
   openSheet(`<h3>${esc(userEmail || "Menu")}</h3><div class="menu">
     <button class="mi" type="button" data-act="ai">Ask Orbit AI</button>
     <button class="mi" type="button" data-act="paste">Paste a list</button>
+    <button class="mi" type="button" data-act="sort">Sort into reminders and projects</button>
     <button class="mi" type="button" data-act="google">Google Calendar and Tasks</button>
     <button class="mi" type="button" data-act="boards">Edit boards</button>
     <button class="mi danger" type="button" data-act="signout">Sign out</button></div>`);
@@ -904,6 +943,7 @@ document.addEventListener("click", e => {
     if (act === "google") return openGoogle();
     if (act === "boards") return openBoardsEditor();
     if (act === "paste") return openPasteList();
+    if (act === "sort") return openSort();
     if (act === "ai") return openAI();
     if (act === "signout") return $("#signOut").click();
     return;
