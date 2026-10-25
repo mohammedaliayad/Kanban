@@ -1,4 +1,4 @@
-# Mo's Kanban (standalone app)
+# Orbit Ai (standalone app)
 
 Static site (no build step) backed by Supabase for login, storage and live sync.
 

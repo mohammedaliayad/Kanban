@@ -1,9 +1,9 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style><title>Mo's Kanban</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style><title>Orbit Ai</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Kanban">
-<meta name="theme-color" content="#2f5d50">
+<meta name="apple-mobile-web-app-title" content="Orbit Ai">
+<meta name="theme-color" content="#ffc20e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -15,23 +15,26 @@
 <style>
 /* Layout: sticky quick-add bar on top, board filter chips, then columns side by side (scroll sideways on phones). */
 :root {
-  --bg: #eef0ec; --surface: #fbfcfa; --col: #e3e7e1; --line: #cfd5cc;
-  --ink: #1b2320; --muted: #5d6a64; --accent: #2f5d50; --accent-ink: #ffffff;
-  --urgent: #b4442c; --soon: #a86a12; --focus: #2f5d50;
-  --shadow: 0 1px 2px rgba(27,35,32,.08), 0 2px 6px rgba(27,35,32,.06);
+  --bg: #f3f4f5; --surface: #ffffff; --col: #e8eaec; --line: #d3d6da;
+  --ink: #2b2f33; --muted: #6b7178; --accent: #1e8a4c; --accent-ink: #ffffff;
+  --brand: #ffc20e; --brand-ink: #2b2f33;
+  --urgent: #c2412d; --soon: #a86a12; --focus: #1e8a4c;
+  --shadow: 0 1px 2px rgba(43,47,51,.08), 0 2px 6px rgba(43,47,51,.06);
   --f-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
   --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #151a18; --surface: #212826; --col: #1b2120; --line: #2f3835;
-  --ink: #e6ebe8; --muted: #93a19a; --accent: #7fc0aa; --accent-ink: #0f1513;
-  --urgent: #ef8a72; --soon: #e0ad5a; --focus: #7fc0aa;
+  --bg: #1c1f22; --surface: #26292d; --col: #212427; --line: #363a3f;
+  --ink: #eceef0; --muted: #9ba1a8; --accent: #4cc983; --accent-ink: #10241a;
+  --brand: #ffc20e; --brand-ink: #2b2f33;
+  --urgent: #ef8a72; --soon: #e0ad5a; --focus: #4cc983;
   --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #151a18; --surface: #212826; --col: #1b2120; --line: #2f3835;
-  --ink: #e6ebe8; --muted: #93a19a; --accent: #7fc0aa; --accent-ink: #0f1513;
-  --urgent: #ef8a72; --soon: #e0ad5a; --focus: #7fc0aa;
+  --bg: #1c1f22; --surface: #26292d; --col: #212427; --line: #363a3f;
+  --ink: #eceef0; --muted: #9ba1a8; --accent: #4cc983; --accent-ink: #10241a;
+  --brand: #ffc20e; --brand-ink: #2b2f33;
+  --urgent: #ef8a72; --soon: #e0ad5a; --focus: #4cc983;
   --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark; }
 
 * { box-sizing: border-box; }
@@ -43,7 +46,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
+header { border-top: 4px solid var(--brand); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
 .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -.01em; }
 .sub { color: var(--muted); font-size: 12px; }
@@ -57,7 +60,7 @@ h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 0
 .add input { flex: 1; min-width: 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 15px; }
 .add input::placeholder { color: var(--muted); }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-weight: 500; }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); font-weight: 600; }
 .btn.danger { color: var(--urgent); }
 .hint { color: var(--muted); font-size: 12px; }
 .hint code { font-family: var(--f-mono); font-size: 11.5px; background: var(--col); padding: 1px 5px; border-radius: 4px; }
@@ -193,7 +196,7 @@ details.sect[open] summary { margin-bottom: 6px; }
 
 <header class="wrap">
   <div class="top">
-    <h1>Mo's Kanban</h1>
+    <h1>Orbit Ai</h1>
     <span class="r"><span class="sub" id="sub"></span><button class="btn sm" type="button" id="signOut" hidden>Sign out</button></span>
   </div>
   <div class="add"><button class="btn primary" type="button" id="newTask" disabled>+ New task</button></div>
