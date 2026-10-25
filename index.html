@@ -135,6 +135,9 @@ details.sect[open] summary { margin-bottom: 6px; }
 .ctop { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .card-del, .icon-del { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--muted); cursor: pointer; border: 0; background: transparent; padding: 0; }
 .card-del:hover, .icon-del:hover { color: var(--urgent); background: color-mix(in srgb, var(--urgent) 12%, transparent); }
+.plflags { display: flex; gap: 18px; margin: 4px 0 8px; }
+.plflags label { display: flex; gap: 6px; align-items: center; }
+.plflags input { width: 18px; height: 18px; accent-color: var(--accent); }
 .card-day { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; font-size: 12px; font-weight: 600; padding: 2px 9px; cursor: pointer; }
 .card-day:hover { border-color: var(--accent); color: var(--accent); }
 .card-day.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
@@ -204,7 +207,7 @@ details.sect[open] summary { margin-bottom: 6px; }
     <h1>Orbit Ai</h1>
     <span class="r"><span class="sub" id="sub"></span><button class="btn sm" type="button" id="signOut" hidden>Sign out</button></span>
   </div>
-  <div class="add"><button class="btn primary" type="button" id="newTask" disabled>+ New task</button></div>
+  <div class="add"><button class="btn primary" type="button" id="newTask" disabled>+ New task</button><button class="btn" type="button" id="pasteList" hidden>Paste a list</button></div>
   <div class="chips" id="chips"></div>
 </header>
 
@@ -748,14 +751,52 @@ function start(user) {
   readOnly = false;
   db = makeDb(user.id);
   $("#sub").textContent = user.email || "";
-  $("#signOut").hidden = false; $("#newTask").hidden = false; $("#newTask").disabled = false;
+  $("#signOut").hidden = false; $("#pasteList").hidden = false; $("#newTask").hidden = false; $("#newTask").disabled = false;
   $("#state").textContent = "Loading your board…"; $("#state").hidden = false;
   db.doc("config/main").onSnapshot(s => { if (s.exists) { const d = s.data(); if (d.boards?.length && d.columns?.length) config = JSON.parse(JSON.stringify(d)); } show(); });
   db.collection("cards").onSnapshot(snap => { cards = snap.docs.map(d => ({ id: d.id, ...d.data() })); show(); });
 }
 
+// Paste a list: a line on its own becomes a task, bullet lines under it become its checklist.
+// A heading followed straight by another heading (e.g. "Vehicles & Yard") is kept as a note on the tasks below it.
+function parseList(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const bullet = /^([*\-•⁃·–]\s*)+/;
+  const out = []; let group = "";
+  lines.forEach((l, i) => {
+    if (bullet.test(l)) { const t = l.replace(bullet, "").trim(); if (!t) return; if (!out.length) out.push({ title: group || "List", checklist: [], note: "" }); out[out.length - 1].checklist.push({ t, done: false }); return; }
+    const next = lines[i + 1];
+    if (next && !bullet.test(next) && !out.length) { group = l; return; }
+    out.push({ title: l.replace(/\s*:\s*/, ": "), checklist: [], note: group });
+  });
+  return out;
+}
+function openPasteList() {
+  let board = filter !== "all" && config.boards.some(b => b.id === filter) ? filter : config.boards[0]?.id;
+  openSheet(`<h3>Paste a list</h3>
+    <div class="field"><label for="pl-text">Each line on its own becomes a task. Lines starting with * or - under it become its checklist.</label><textarea id="pl-text" rows="10" placeholder="Caddy\n* Yellow walls\n* Roof racks\n\nIveco Daily\n* Paint wheels"></textarea></div>
+    <div class="field"><label>Where does it go?</label><div class="seg" id="pl-board">${config.boards.map(b => `<button type="button" class="btn" data-v="${esc(b.id)}" aria-pressed="${b.id === board}"><span class="dot" style="background:${esc(b.color)};display:inline-block;margin-right:6px"></span>${esc(b.name)}</button>`).join("")}</div></div>
+    <div class="plflags"><label><input type="checkbox" id="pl-urgent"> Urgent</label><label><input type="checkbox" id="pl-important"> Important</label></div>
+    <p class="hint" id="pl-preview"></p>
+    <div class="actions"><span></span><div class="r"><button class="btn" type="button" id="pl-x">Cancel</button><button class="btn primary" type="button" id="pl-go">Add tasks</button></div></div>`);
+  const prev = () => { const l = parseList($("#pl-text").value); $("#pl-preview").textContent = l.length ? `${l.length} task${l.length > 1 ? "s" : ""}, ${l.reduce((n, t) => n + t.checklist.length, 0)} checklist items` : ""; };
+  $("#pl-text").oninput = prev;
+  $("#pl-board").onclick = e => { const b = e.target.closest("[data-v]"); if (!b) return; board = b.dataset.v; $("#pl-board").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
+  $("#pl-x").onclick = closeSheet;
+  $("#pl-go").onclick = async () => {
+    const list = parseList($("#pl-text").value); if (!list.length) return toast("Paste something first.");
+    const urgent = $("#pl-urgent").checked, important = $("#pl-important").checked;
+    let top = Math.min(0, ...cards.filter(x => x.col === config.columns[0].id).map(x => x.order ?? 0));
+    const made = list.reverse().map(t => ({ id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: t.title, board, col: config.columns[0].id, urgent, important, due: null, day: null, note: t.note, checklist: t.checklist, order: --top, created: new Date().toISOString() }));
+    cards.push(...made); closeSheet(); render(); toast(`Added ${made.length} task${made.length > 1 ? "s" : ""} to ${boardOf(board).name}`);
+    for (const c of made) await saveCard(c);
+  };
+  setTimeout(() => $("#pl-text").focus(), 30);
+}
+$("#pasteList").onclick = openPasteList;
+
 function showLogin(msg) {
-  $("#newTask").hidden = true; $("#signOut").hidden = true; $("#board").hidden = true; $("#today").hidden = true;
+  $("#newTask").hidden = true; $("#pasteList").hidden = true; $("#signOut").hidden = true; $("#board").hidden = true; $("#today").hidden = true;
   $("#state").hidden = false;
   $("#state").innerHTML = `<form class="login" id="login" autocomplete="on">
     <h2>Sign in</h2>
