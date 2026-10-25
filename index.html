@@ -135,6 +135,11 @@ details.sect[open] summary { margin-bottom: 6px; }
 .ctop { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
 .card-del, .icon-del { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--muted); cursor: pointer; border: 0; background: transparent; padding: 0; }
 .card-del:hover, .icon-del:hover { color: var(--urgent); background: color-mix(in srgb, var(--urgent) 12%, transparent); }
+.card-day { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; font-size: 12px; font-weight: 600; padding: 2px 9px; cursor: pointer; }
+.card-day:hover { border-color: var(--accent); color: var(--accent); }
+.card-day.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.sect h3 .btn.sm { margin-left: 8px; vertical-align: middle; }
+.pill.time { color: var(--ink); font-family: var(--f-mono); }
 .card-del { margin: -4px -6px 0 0; opacity: 0; transition: opacity .12s; }
 .card:hover .card-del, .card:focus-within .card-del { opacity: 1; }
 @media (hover: none) { .card-del { opacity: .7; } }
@@ -378,12 +383,14 @@ function rowHTML(c, action) {
     <input type="checkbox" data-done="${esc(c.id)}" ${done ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="Mark ${esc(c.title)} done">
     <button class="body" type="button" data-open="${esc(c.id)}"><span class="t">${esc(c.title)}</span>
       <span class="meta"><span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>
-      ${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
+      ${c.time ? `<span class="pill time">${esc(c.time)}${c.endTime ? "–" + esc(c.endTime) : ""}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
       ${d && !done ? `<span class="pill ${d.cls}">Due ${esc(d.label.toLowerCase() === d.label ? d.label : d.label)}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}</span></button>
     ${action && !readOnly ? action : ""}${readOnly ? "" : `<button class="icon-del" type="button" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</button>`}
   </div>`;
 }
+
+function planOn(c, day) { c.day = day; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
 
 // My day: a Google Tasks style list for one date. Cards join a day through their "day" field.
 function renderToday(shown) {
@@ -392,7 +399,7 @@ function renderToday(shown) {
   const days = [...Array(7)].map((_, i) => addDays(start, i));
   const count = d => shown.filter(c => c.day === d && c.col !== "done").length;
   const open = shown.filter(c => c.col !== "done");
-  const planned = shown.filter(c => c.day === selDay).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
+  const planned = shown.filter(c => c.day === selDay).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.time || "99").localeCompare(b.time || "99") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
   const carried = selDay === t ? open.filter(c => c.day && c.day < t) : [];
   const dueHere = open.filter(c => c.due === selDay && c.day !== selDay && !carried.includes(c));
   const others = open.filter(c => c.day !== selDay && !carried.includes(c) && !dueHere.includes(c)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (a.order ?? 0) - (b.order ?? 0));
@@ -410,8 +417,8 @@ function renderToday(shown) {
       <div><h2>${title}, ${fmtDay(selDay, { day: "numeric", month: "long" })}</h2><div class="hint">${left} to do · ${planned.length - left} done</div></div>
       <div class="r">${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
-    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, `<button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board below.</div>`}</div></section>
-    ${carried.length ? `<section class="sect"><h3>Not finished from earlier days</h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">Move to today</button>`)).join("")}</div></section>` : ""}
+    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board below.</div>`}</div></section>
+    ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
     ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your board (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}`;
   const inp = $("#dayAddIn");
@@ -437,7 +444,7 @@ $("#today").addEventListener("change", async e => {
   if (e.target.checked) await spawnNext(c);
 });
 $("#today").addEventListener("click", async e => {
-  const el = e.target.closest("[data-del],[data-day],[data-addday],[data-week],[data-goto],[data-open],[data-plan],[data-unplan]"); if (!el) return;
+  const el = e.target.closest("[data-del],[data-day],[data-addday],[data-week],[data-goto],[data-open],[data-plan],[data-unplan],[data-shift],[data-planall]"); if (!el) return;
   if (el.dataset.day) { selDay = el.dataset.day; return render(); }
   if (el.dataset.addday) { selDay = el.dataset.addday; render(); return openCard(null, newPreset({ day: selDay })); }
   if (el.dataset.week) { selDay = addDays(selDay, +el.dataset.week); return render(); }
@@ -445,7 +452,9 @@ $("#today").addEventListener("click", async e => {
   if (el.dataset.open) return openCard(el.dataset.open);
   if (el.dataset.del) return deleteTasks([el.dataset.del]);
   if (readOnly) return;
-  const c = cards.find(x => x.id === (el.dataset.plan || el.dataset.unplan)); if (!c) return;
+  if (el.dataset.planall) { const t = todayIso(), list = cards.filter(c => c.col !== "done" && c.day && c.day < t); list.forEach(c => planOn(c, t)); render(); toast(`Moved ${list.length} to today`); for (const c of list) await saveCard(c); return; }
+  const c = cards.find(x => x.id === (el.dataset.plan || el.dataset.unplan || el.dataset.shift)); if (!c) return;
+  if (el.dataset.shift) { planOn(c, addDays(c.day || selDay, 1)); toast("Moved to " + fmtDay(c.day, { weekday: "short", day: "numeric", month: "short" })); render(); return saveCard(c); }
   if (el.dataset.plan) { c.day = selDay; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === selDay).map(x => x.dayOrder ?? 0)) + 1; toast("Added to " + (selDay === todayIso() ? "today" : fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))); }
   else { c.day = null; }
   render(); await saveCard(c);
@@ -454,14 +463,14 @@ $("#today").addEventListener("click", async e => {
 function cardHTML(c) {
   const b = boardOf(c.board), d = dueInfo(c.due);
   return `<button class="card" draggable="${!readOnly}" data-id="${esc(c.id)}">
-    <span class="ctop"><span class="t">${esc(c.title)}</span>${readOnly ? "" : `<span class="card-del" role="button" tabindex="0" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</span>`}</span>
+    <span class="ctop"><span class="t">${esc(c.title)}</span>${readOnly || c.col === "done" ? "" : `<span class="card-day ${c.day === todayIso() ? "on" : ""}" role="button" tabindex="0" data-today="${esc(c.id)}" title="${c.day === todayIso() ? "On today's list (tap to take off)" : "Put on today's list"}">${c.day === todayIso() ? "✓ Today" : "+ Today"}</span>`}${readOnly ? "" : `<span class="card-del" role="button" tabindex="0" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</span>`}</span>
     <span class="meta">
       ${filter === "all" ? `<span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>` : ""}
       ${view === "matrix" ? `<span class="tag">${esc(config.columns.find(x => x.id === c.col)?.name || "")}</span>` : ""}
       ${c.urgent && view !== "matrix" ? `<span class="pill urgent">Urgent</span>` : ""}
       ${c.important && view !== "matrix" ? `<span class="pill important">Important</span>` : ""}
       ${d ? `<span class="pill ${d.cls}">${esc(d.label)}</span>` : ""}
-      ${c.day === todayIso() && c.col !== "done" ? `<span class="pill planned">On my day</span>` : ""}
+      ${c.day && c.day !== todayIso() && c.col !== "done" ? `<span class="pill planned">${esc(fmtDay(c.day, { weekday: "short", day: "numeric", month: "short" }))}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}
       ${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}
     </span></button>`;
@@ -529,7 +538,11 @@ $("#board").addEventListener("drop", async e => {
   if (doneNow) await spawnNext(card);
 });
 
-$("#board").addEventListener("click", e => {
+$("#board").addEventListener("click", async e => {
+  const td = e.target.closest("[data-today]");
+  if (td) { e.stopPropagation(); const c = cards.find(x => x.id === td.dataset.today); if (!c) return; const t = todayIso();
+    if (c.day === t) { c.day = null; toast("Taken off today"); } else { planOn(c, t); toast("Added to today"); }
+    render(); return saveCard(c); }
   const dl = e.target.closest("[data-del]"); if (dl) { e.stopPropagation(); return deleteTasks([dl.dataset.del]); }
   if (e.target.closest("[data-cleardone]")) return deleteTasks(cards.filter(c => c.col === "done" && (filter === "all" || c.board === filter)).map(c => c.id));
   const nc = e.target.closest("[data-newcol]"); if (nc) return openCard(null, newPreset({ col: nc.dataset.newcol }));
@@ -556,7 +569,8 @@ function openCard(id, preset) {
     <div class="row2">
       <div class="field"><label for="f-day">On my day list for</label><input id="f-day" type="date" value="${esc(c.day || "")}" ${dis}>
         ${readOnly ? "" : `<div class="seg"><button class="btn sm" type="button" id="f-day-today">Today</button><button class="btn sm" type="button" id="f-day-tmr">Tomorrow</button><button class="btn sm" type="button" id="f-day-clear">None</button></div>`}</div>
-      <div class="field"><label for="f-due">Due date</label><input id="f-due" type="date" value="${esc(c.due || "")}" ${dis}><span class="hint">Emails 14, 7, 3, 2, 1 days before, and goes on your calendar</span></div>
+      <div class="field"><label for="f-time">Time (optional)</label><div class="seg"><input id="f-time" type="time" value="${esc(c.time || "")}" aria-label="Start time" ${dis}><span class="hint">to</span><input id="f-end" type="time" value="${esc(c.endTime || "")}" aria-label="End time" ${dis}></div><span class="hint">With a time it goes on Google Calendar. Without one it's an all-day task in Google Tasks.</span></div>
+      <div class="field"><label for="f-due">Due date</label><input id="f-due" type="date" value="${esc(c.due || "")}" ${dis}><span class="hint">On your calendar, with emails 14, 7, 3, 2 and 1 days before</span></div>
     </div>
     <div class="field"><label>Repeat <span class="hint">(the next one appears when you tick this off)</span></label>${seg("f-rep", REPEATS, c.repeat || "")}</div>
     <div style="display:flex;gap:18px;flex-wrap:wrap">
@@ -611,7 +625,8 @@ function openCard(id, preset) {
     if (!title) { $("#f-title").focus(); return toast("Give the task a name first."); }
     const before = c.col;
     if (isNew || col !== c.col) c.order = Math.min(0, ...cards.filter(x => x.col === col).map(x => x.order ?? 0)) - 1;
-    Object.assign(c, { title, col, board, due: $("#f-due").value || null, urgent: $("#f-urgent").checked, important: $("#f-important").checked, note: $("#f-note").value, checklist: items.map(i => ({ ...i })), repeat: repeat || null });
+    const time = $("#f-time").value || null; let endTime = time ? ($("#f-end").value || null) : null; if (endTime && endTime <= time) endTime = null;
+    Object.assign(c, { title, col, board, time, endTime, due: $("#f-due").value || null, urgent: $("#f-urgent").checked, important: $("#f-important").checked, note: $("#f-note").value, checklist: items.map(i => ({ ...i })), repeat: repeat || null });
     if (!repeat) delete c.repeatSpawned;
     const day = $("#f-day").value || null;
     if (isNew || day !== (c.day || null)) { c.day = day; if (day) c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
