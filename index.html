@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792917800">
+<meta name="build" content="1792918150">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -133,6 +133,20 @@ main { padding-block: 14px 32px; }
 .srow .sname { min-width: 0; font-size: 14px; } .srow .dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
 .srow .seg { flex: none; }
 .greport { font-size: 13.5px; display: grid; gap: 6px; margin-top: 8px; } .greport p { margin: 0; } .greport details { margin: 2px 0 0 12px; } .greport summary { cursor: pointer; }
+.grip { flex: none; cursor: grab; color: var(--muted); font-size: 14px; line-height: 1; letter-spacing: -2px; padding: 4px 2px; margin: 2px -4px 0 -6px; touch-action: none; user-select: none; }
+.grip:active { cursor: grabbing; }
+.dragsrc { opacity: .45; }
+.draglabel { position: fixed; left: 0; top: 0; z-index: 99; pointer-events: none; background: var(--brand); color: var(--brand-ink); font-weight: 600; font-size: 13px; padding: 6px 10px; border-radius: 8px; box-shadow: 0 8px 20px rgba(43,47,51,.3); max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dropon { outline: 2px solid var(--brand); outline-offset: -2px; background: color-mix(in srgb, var(--brand) 18%, transparent) !important; }
+.calnav { position: relative; }
+.calr { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.monthbtn { border: 0; background: transparent; color: var(--ink); font: inherit; font-family: var(--f-display); font-size: 20px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.monthbtn:hover { background: var(--col); } .monthbtn span { font-size: 12px; color: var(--muted); }
+.monthpop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(43,47,51,.2); padding: 12px; width: 260px; }
+.mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.mp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.mp-grid .is-now { border-color: var(--brand); }
+.mp-grid [aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .calbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .calnav { display: flex; align-items: center; gap: 6px; }
 .calnav h2 { font-family: var(--f-display); font-size: 19px; margin: 0 0 0 6px; }
@@ -632,7 +646,7 @@ function renderKanban(board, shown, matrix) {
   if (matrix) {
     const open = shown.filter(c => c.col !== "done");
     board.innerHTML = QUADS.map(q => {
-      const list = open.filter(c => !!c.urgent === q.u && !!c.important === q.i).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const list = open.filter(c => !!c.urgent === q.u && !!c.important === q.i).sort(byRank("qRank"));
       return `<section class="column quad q-${q.id}" data-q="${q.id}">
         <div class="colhead"><div><h2>${q.name}</h2><div class="qsub">${q.sub}</div></div><span class="n">${list.length}</span></div>
         ${list.map(cardHTML).join("") || `<div class="empty">Drag cards here</div>`}
@@ -641,7 +655,7 @@ function renderKanban(board, shown, matrix) {
     return;
   }
   board.innerHTML = config.columns.map(col => {
-    const list = shown.filter(c => c.col === col.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const list = shown.filter(c => c.col === col.id).sort(byRank("rank"));
     return `<section class="column ${col.id === "done" ? "done" : ""}" data-col="${esc(col.id)}">
       <div class="colhead"><h2>${esc(col.name)}</h2><span class="colr">${col.id === "done" && list.length && !readOnly ? `<button class="btn sm" type="button" data-cleardone title="Delete every task in Done">Clear all</button>` : ""}<span class="n">${list.length}</span>${readOnly ? "" : `<button class="coladd" type="button" data-newcol="${esc(col.id)}" aria-label="Add a task to ${esc(col.name)}">+</button>`}</span></div>
       ${list.map(cardHTML).join("") || `<div class="empty">${col.id === config.columns[0].id ? "Nothing here. Type above to add a card." : "Drag cards here"}</div>`}
@@ -657,10 +671,14 @@ function clCount(c) {
   return c.checklist?.length ? `<span class="cl-count ${c.checklist.every(i => i.done) ? "all" : ""}" title="Checklist">☑ ${c.checklist.filter(i => i.done).length}/${c.checklist.length}</span>` : "";
 }
 
-function rowHTML(c, action) {
+// Lists are A to Z until you drag something; dragged lists keep your order (rank), new items follow A to Z.
+const abc = (a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base", numeric: true });
+const byRank = key => (a, b) => { const ra = a[key] ?? Infinity, rb = b[key] ?? Infinity; return ra !== rb ? (ra < rb ? -1 : 1) : abc(a, b); };
+const dayCmp = (a, b) => (a.col === "done") - (b.col === "done") || ((a.dayRank ?? null) !== null || (b.dayRank ?? null) !== null ? byRank("dayRank")(a, b) : (a.time || "99").localeCompare(b.time || "99") || abc(a, b));
+function rowHTML(c, action, grip = c.col !== "done" && c.src !== "gcal") {
   const b = boardOf(c.board), d = dueInfo(c.due), done = c.col === "done";
-  return `<div class="trow ${done ? "done" : ""}">
-    <input type="checkbox" data-done="${esc(c.id)}" ${done ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="Mark ${esc(c.title)} done">
+  return `<div class="trow ${done ? "done" : ""}" data-row="${esc(c.id)}">
+    ${grip && !readOnly ? `<span class="grip" data-grip="${esc(c.id)}" title="Drag to reorder or onto another day" aria-hidden="true">⋮⋮</span>` : ""}<input type="checkbox" data-done="${esc(c.id)}" ${done ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="Mark ${esc(c.title)} done">
     <button class="body" type="button" data-open="${esc(c.id)}"><span class="t">${esc(c.title)}</span>
       <span class="meta"><span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>
       ${c.src === "gcal" ? `<span class="pill gsrc">Google Calendar</span>` : c.src === "gtask" ? `<span class="pill gsrc">Google Tasks</span>` : ""}${c.time ? `<span class="pill time">${tm(c.time)}${c.endTime ? "–" + tm(c.endTime) : ""}</span>` : ""}${c.guests?.length ? `<span class="tag" title="${esc(c.guests.join(", "))}">👥 ${c.guests.length}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
@@ -691,10 +709,10 @@ function renderToday(shown) {
   const count = d => shown.filter(c => c.day === d && c.col !== "done").length;
   const open = shown.filter(c => c.col !== "done" && c.src !== "gcal");
   const dayEvents = shown.filter(c => c.src === "gcal" && (c.day === selDay || (c.endDay && c.day < selDay && selDay <= c.endDay))).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
-  const planned = shown.filter(c => c.day === selDay && c.src !== "gcal").sort((a, b) => (a.col === "done") - (b.col === "done") || (a.time || "99").localeCompare(b.time || "99") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
+  const planned = shown.filter(c => c.day === selDay && c.src !== "gcal").sort(dayCmp);
   const carried = selDay === t ? open.filter(c => c.day && c.day < t) : [];
   const dueHere = open.filter(c => c.due === selDay && c.day !== selDay && !carried.includes(c));
-  const others = open.filter(c => c.day !== selDay && !carried.includes(c) && !dueHere.includes(c)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (a.order ?? 0) - (b.order ?? 0));
+  const others = open.filter(c => c.day !== selDay && !carried.includes(c) && !dueHere.includes(c)).sort(abc);
   const left = planned.filter(c => c.col !== "done").length;
   const add = c => `<button class="btn sm" type="button" data-plan="${esc(c.id)}">+ Add</button>`;
   const title = selDay === t ? "Today" : selDay === addDays(t, 1) ? "Tomorrow" : selDay === addDays(t, -1) ? "Yesterday" : fmtDay(selDay, { weekday: "long" });
@@ -778,15 +796,23 @@ function withRepeats(list, until) {
   }
   return out;
 }
+// Month jump: tap the month name for a year of months, with ‹ › to change year.
+let monthPick = false, pickYear = null;
+function monthPickerHTML() {
+  const y = pickYear ?? +selDay.slice(0, 4), cur = selDay.slice(0, 7), now = todayIso().slice(0, 7);
+  return `<div class="monthpop" role="dialog" aria-label="Pick a month"><div class="mp-head"><button class="btn nav" type="button" data-pickyear="-1" aria-label="Previous year">‹</button><b>${y}</b><button class="btn nav" type="button" data-pickyear="1" aria-label="Next year">›</button></div>
+    <div class="mp-grid">${[...Array(12)].map((_, m) => { const k = y + "-" + String(m + 1).padStart(2, "0"); return `<button class="btn sm ${k === now ? "is-now" : ""}" type="button" data-pickmonth="${k}" aria-pressed="${k === cur}">${new Date(y, m, 1).toLocaleDateString("en-AU", { month: "short" })}</button>`; }).join("")}</div></div>`;
+}
 function renderCal(shown) {
   shown = withRepeats(shown, addDays(selDay, 45));
   const t = todayIso(), week = calMode !== "month", one = calMode === "day";
   const bar = `<div class="calbar"><div class="calnav">
-      <button class="btn nav" type="button" data-calnav="-1" aria-label="${week ? "Previous day" : "Previous month"}">‹</button>
-      <button class="btn nav" type="button" data-calnav="1" aria-label="${week ? "Next day" : "Next month"}">›</button>
+      <button class="btn nav" type="button" data-calnav="-1" aria-label="Previous day" title="Previous day">‹</button>
+      <button class="btn nav" type="button" data-calnav="1" aria-label="Next day" title="Next day">›</button>
       <button class="btn sm todaybtn" type="button" data-goto="${t}">Today</button>
-      <h2>${fmtDay(selDay, { month: "long", year: "numeric" })}</h2></div>
-    <div class="seg"><button class="btn sm" type="button" data-calmode="day" aria-pressed="${one}">Day</button><button class="btn sm" type="button" data-calmode="week" aria-pressed="${week && !one}">Week</button><button class="btn sm" type="button" data-calmode="month" aria-pressed="${!week}">Month</button></div></div>`;
+      <button class="monthbtn" type="button" data-monthpick="1" aria-expanded="${monthPick}" title="Jump to a month">${fmtDay(selDay, { month: "long", year: "numeric" })} <span aria-hidden="true">▾</span></button>
+      ${monthPick ? monthPickerHTML() : ""}</div>
+    <div class="calr">${readOnly ? "" : `<button class="btn sm primary addev" type="button" data-newev="1" title="New event or task">+ New</button>`}<div class="seg"><button class="btn sm" type="button" data-calmode="day" aria-pressed="${one}">Day</button><button class="btn sm" type="button" data-calmode="week" aria-pressed="${week && !one}">Week</button><button class="btn sm" type="button" data-calmode="month" aria-pressed="${!week}">Month</button></div></div></div>`;
   if (week) {
     const strip = [...Array(7)].map((_, i) => addDays(weekStart(selDay), i));
     const days = one ? [selDay] : strip, items = days.map(d => dayItems(shown, d));
@@ -835,8 +861,14 @@ $("#today").addEventListener("click", async e => {
   // Tick a task straight from the calendar.
   const tick = e.target.closest("[data-tick]");
   if (tick) { e.preventDefault(); const c = cards.find(x => x.id === tick.dataset.tick); if (c && !readOnly) { toast(c.col === "done" ? "Marked not done" : "Done ✓"); await setDone(c, c.col !== "done"); } return; }
-  const el = e.target.closest("[data-del],[data-day],[data-addday],[data-week],[data-goto],[data-open],[data-plan],[data-unplan],[data-shift],[data-planall],[data-calnav],[data-calmode],[data-mday],[data-slot],[data-slotday]"); if (!el) return;
-  if (el.dataset.calnav) { selDay = calMode === "week" ? addDays(selDay, +el.dataset.calnav) : addMonths(selDay, +el.dataset.calnav); return render(); }
+  const el = e.target.closest("[data-del],[data-day],[data-addday],[data-week],[data-goto],[data-open],[data-plan],[data-unplan],[data-shift],[data-planall],[data-calnav],[data-calmode],[data-monthpick],[data-pickyear],[data-pickmonth],[data-newev],[data-mday],[data-slot],[data-slotday]"); if (!el) return;
+  if (el.dataset.calnav) { selDay = addDays(selDay, +el.dataset.calnav); monthPick = false; return render(); }
+  if (el.dataset.monthpick) { monthPick = !monthPick; pickYear = null; return render(); }
+  if (el.dataset.pickyear) { pickYear = (pickYear ?? +selDay.slice(0, 4)) + +el.dataset.pickyear; return render(); }
+  if (el.dataset.pickmonth) { const [y, m] = el.dataset.pickmonth.split("-").map(Number), last = new Date(y, m, 0).getDate();
+    selDay = el.dataset.pickmonth + "-" + String(Math.min(+selDay.slice(8), last)).padStart(2, "0"); monthPick = false; return render(); }
+  if (el.dataset.newev) { if (readOnly) return; const h = Math.min(22, new Date().getHours() + 1), hh = v => String(v).padStart(2, "0") + ":00";
+    return openCard(null, newPreset({ day: selDay, time: hh(h), endTime: hh(h + 1) })); }
   if (el.dataset.calmode) { calMode = el.dataset.calmode; try { localStorage.setItem("kb.cal", calMode); } catch (er) {} return render(); }
   if (el.dataset.mday) { selDay = el.dataset.mday; render(); return window.scrollTo({ top: 0, behavior: "smooth" }); }
   if (el.dataset.slot) { if (readOnly) return; selDay = el.dataset.slot; render(); return openCard(null, newPreset({ day: selDay })); }
@@ -973,6 +1005,77 @@ document.addEventListener("click", e => {
 });
 $("#fab").onclick = () => $("#newTask").click();
 
+// Drag tasks in Calendar and the day list (mouse and touch): grab the ⋮⋮ handle on a row, or a task on the calendar
+// (press and hold on a phone). Drop on another row to reorder, or on a day, an all-day slot or an hour to reschedule.
+let drag = null, swallowClick = false;
+const dropTarget = (x, y) => document.elementFromPoint(x, y)?.closest("[data-day],[data-addday],[data-slot],[data-mday],[data-slotday],.trow[data-row]");
+function dragStart(st) {
+  st.started = true;
+  const c = cards.find(x => x.id === st.id);
+  st.label = document.createElement("div"); st.label.className = "draglabel"; st.label.textContent = c?.title || ""; document.body.appendChild(st.label);
+  st.src?.classList.add("dragsrc"); navigator.vibrate?.(10);
+}
+$("#today").addEventListener("pointerdown", e => {
+  if (readOnly || e.button > 0) return;
+  const grip = e.target.closest("[data-grip]");
+  const chip = !grip && !e.target.closest("[data-tick]") && e.target.closest(".ev[data-open]:not(.ghost):not(.due)");
+  if (!grip && !chip) return;
+  const id = grip ? grip.dataset.grip : chip.dataset.open, c = cards.find(x => x.id === id);
+  if (!c || c.src === "gcal") return; // Google events move in Google, so invites go out from there
+  drag = { id, x0: e.clientX, y0: e.clientY, src: grip ? grip.closest(".trow") : chip, list: grip ? grip.closest(".tlist") : null, touch: e.pointerType === "touch", started: false };
+  if (grip) { e.preventDefault(); grip.setPointerCapture?.(e.pointerId); dragStart(drag); }
+  else if (drag.touch) drag.timer = setTimeout(() => drag && !drag.started && dragStart(drag), 350);
+});
+document.addEventListener("pointermove", e => {
+  if (!drag) return;
+  if (!drag.started) {
+    const far = Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6;
+    if (far && drag.touch) { clearTimeout(drag.timer); drag = null; return; } // a scroll, not a drag
+    if (far) dragStart(drag); else return;
+  }
+  e.preventDefault();
+  drag.label.style.transform = `translate(${e.clientX + 12}px, ${e.clientY + 10}px)`;
+  document.querySelectorAll(".dropon").forEach(el => el.classList.remove("dropon"));
+  const t = dropTarget(e.clientX, e.clientY);
+  if (t && t.matches(".trow") && drag.list && t.parentElement === drag.list && t !== drag.src) {
+    const r = t.getBoundingClientRect(); drag.list.insertBefore(drag.src, e.clientY < r.top + r.height / 2 ? t : t.nextSibling);
+  } else if (t && !t.matches(".trow")) t.classList.add("dropon");
+}, { passive: false });
+document.addEventListener("pointerup", async e => {
+  const st = drag; drag = null; if (!st) return; clearTimeout(st.timer);
+  if (!st.started) return;
+  st.label.remove(); st.src?.classList.remove("dragsrc"); document.querySelectorAll(".dropon").forEach(el => el.classList.remove("dropon"));
+  swallowClick = true; setTimeout(() => swallowClick = false, 0);
+  const c = cards.find(x => x.id === st.id); if (!c) return;
+  const t = dropTarget(e.clientX, e.clientY);
+  if (!t || (t.matches(".trow") && t.parentElement !== st.list)) {
+    if (st.list && st.list.contains(st.src)) { // dropped back inside its own list: keep the new order
+      const rows = [...st.list.querySelectorAll(".trow[data-row]")].map(r => cards.find(x => x.id === r.dataset.row)).filter(x => x && x.day === selDay);
+      if (rows.includes(c)) { const changed = rows.filter((x, i) => x.dayRank !== i && ((x.dayRank = i), true)); render(); for (const x of changed) await saveCard(x); return; }
+    }
+    return render();
+  }
+  if (t.matches(".trow")) { // reordered within the day list
+    const rows = [...st.list.querySelectorAll(".trow[data-row]")].map(r => cards.find(x => x.id === r.dataset.row)).filter(Boolean);
+    if (rows.every(x => x.day === selDay)) { const changed = rows.filter((x, i) => x.dayRank !== i && ((x.dayRank = i), true)); render(); for (const x of changed) await saveCard(x); }
+    else render();
+    return;
+  }
+  const day = t.dataset.day || t.dataset.addday || t.dataset.slot || t.dataset.mday || t.dataset.slotday;
+  if (t.dataset.slot) { c.time = null; c.endTime = null; } // all-day row
+  if (t.dataset.slotday) { // an hour on the week/day grid: snap to 15 minutes, keep the length
+    const len = c.time ? (c.endTime && mins(c.endTime) > mins(c.time) ? mins(c.endTime) - mins(c.time) : 60) : 60;
+    const m = Math.max(0, Math.min(24 * 60 - 15, Math.round((e.clientY - t.getBoundingClientRect().top) / HOUR * 4) * 15));
+    const hm = v => String(Math.floor(v / 60)).padStart(2, "0") + ":" + String(v % 60).padStart(2, "0");
+    c.time = hm(m); c.endTime = hm(Math.min(24 * 60 - 1, m + len));
+  }
+  if (c.day !== day) { c.day = day; delete c.dayRank; }
+  render(); toast(`Moved to ${fmtDay(day, { weekday: "short", day: "numeric", month: "short" })}${c.time ? ", " + tm(c.time) : ""}`);
+  await saveCard(c);
+});
+document.addEventListener("click", e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
+$("#today").addEventListener("dragstart", e => e.preventDefault());
+
 // Drag and drop between columns (desktop). On phones, tap a card and pick its column.
 let dragId = null;
 const boards = [$("#board"), $("#matrix")];
@@ -993,8 +1096,14 @@ boards.forEach(el => el.addEventListener("drop", async e => {
   if (col.dataset.q) { const q = QUADS.find(x => x.id === col.dataset.q); card.urgent = q.u; card.important = q.i; }
   else card.col = col.dataset.col;
   const doneNow = before !== "done" && card.col === "done"; if (doneNow) card.prevCol = before;
-  card.order = order; render();
-  const { id, ...data } = card; await save(id, data);
+  card.order = order;
+  // The column (or quadrant) now keeps this exact order.
+  const key = col.dataset.q ? "qRank" : "rank", ids = siblings.map(el => el.dataset.id);
+  ids.splice(after ? siblings.indexOf(after) : ids.length, 0, card.id);
+  const moved = ids.map((cid, i) => { const x = cards.find(c => c.id === cid); if (x && x[key] !== i) { x[key] = i; return x; } }).filter(Boolean);
+  if (!moved.includes(card)) moved.push(card);
+  render();
+  for (const x of moved) { const { id, ...data } = x; await save(id, data); }
   if (doneNow) await spawnNext(card);
 }));
 
@@ -1022,7 +1131,7 @@ function openCard(id, preset) {
   const dis = readOnly ? "disabled" : "";
   const seg = (gid, list, cur) => `<div class="seg" id="${gid}">${list.map(o => `<button type="button" class="btn" data-v="${esc(o.id)}" aria-pressed="${cur === o.id}" ${dis}>${o.color ? `<span class="dot" style="background:${esc(o.color)};display:inline-block;margin-right:6px"></span>` : ""}${esc(o.name)}</button>`).join("")}</div>`;
   openSheet(`
-    <h3>${isNew ? "New task" : "Edit task"}</h3>
+    <h3>${isNew ? (c.time ? "New event" : "New task") : "Edit task"}</h3>
     <div class="field"><label for="f-title">What needs doing?</label><input id="f-title" type="text" value="${esc(c.title)}" placeholder="e.g. Send quote to client" ${dis}></div>
     <div class="field"><label>What kind?</label>${seg("f-kind", KINDS, isReminder(c) ? "reminder" : "project")}<span class="hint" id="f-kind-hint"></span></div>
     <div class="field"><label>Where does it go?</label>${seg("f-board", config.boards, c.board)}</div>
