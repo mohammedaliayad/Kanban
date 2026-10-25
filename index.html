@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792912906">
+<meta name="build" content="1792913063">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -182,6 +182,8 @@ main { padding-block: 14px 32px; }
 .week .num { font-family: var(--f-display); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .week .cnt { font-family: var(--f-mono); font-size: 10.5px; opacity: .75; min-height: 1.2em; }
 .dayhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dnav { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dnav .nav { padding: 6px 12px; font-size: 18px; line-height: 1; flex: none; }
 .dayhead h2 { font-family: var(--f-display); font-size: 21px; margin: 0; text-wrap: balance; }
 .dayhead .r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .dayhead input[type=date] { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
@@ -635,7 +637,7 @@ function renderToday(shown) {
       <button class="btn nav" type="button" data-week="1" aria-label="Next day">›</button>
     </div>`}
     <div class="dayhead">
-      <div><h2>${title}, ${fmtDay(selDay, { day: "numeric", month: "long" })}</h2><div class="hint">${left} to do · ${planned.length - left} done</div></div>
+      <div class="dnav"><button class="btn nav" type="button" data-week="-1" aria-label="Previous day">‹</button><div><h2>${title}, ${fmtDay(selDay, { day: "numeric", month: "long" })}</h2><div class="hint">${left} to do · ${planned.length - left} done</div></div><button class="btn nav" type="button" data-week="1" aria-label="Next day">›</button></div>
       <div class="r">${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
     <div class="daycols"><div class="daymain">
