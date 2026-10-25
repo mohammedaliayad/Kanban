@@ -206,6 +206,7 @@ details.sect[open] summary { margin-bottom: 6px; }
 .card-day.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .sect h3 .btn.sm { margin-left: 8px; vertical-align: middle; }
 .pill.time { color: var(--ink); font-family: var(--f-mono); }
+.pill.gsrc { color: #4a62b0; border-style: dashed; font-weight: 500; }
 .card-del { margin: -4px -6px 0 0; opacity: 0; transition: opacity .12s; }
 .card:hover .card-del, .card:focus-within .card-del { opacity: 1; }
 @media (hover: none) { .card-del { opacity: .7; } }
@@ -493,7 +494,7 @@ const IC = {
 };
 const VIEWS = [{ id: "today", name: "Calendar" }, { id: "kanban", name: "Kanban" }, { id: "matrix", name: "Urgent / Important", short: "Priority" }, { id: "dash", name: "Dashboard" }];
 function renderChips() {
-  const counts = {}; cards.forEach(c => { if (c.col !== "done") counts[c.board] = (counts[c.board] || 0) + 1; });
+  const counts = {}; cards.forEach(c => { if (c.col !== "done" && c.src !== "gcal") counts[c.board] = (counts[c.board] || 0) + 1; });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const areas = [{ id: "all", name: "All areas", n: total }, ...config.boards.map(b => ({ ...b, n: counts[b.id] || 0 }))];
   $("#sideNav").innerHTML = VIEWS.map(v => `<button class="sitem" type="button" data-v="${v.id}" aria-pressed="${view === v.id}">${IC[v.id]}<span>${v.name}</span></button>`).join("");
@@ -513,10 +514,11 @@ function render() {
     $("#pStats").hidden = !dash; $("#pToday").hidden = !(dash || view === "today");
     $("#pBoard").hidden = !(dash || view === "kanban" || view === "matrix"); $("#pMatrix").hidden = !dash;
   }
+  const tasks = shown.filter(c => c.src !== "gcal"); // Google Calendar events show on the calendar only
   if (dash || view === "today") renderToday(shown);
-  if (dash) { renderStats(shown); renderKanban($("#board"), shown, false); renderKanban($("#matrix"), shown, true); return; }
+  if (dash) { renderStats(tasks); renderKanban($("#board"), tasks, false); renderKanban($("#matrix"), tasks, true); return; }
   if (view === "today") return;
-  renderKanban($("#board"), shown, view === "matrix");
+  renderKanban($("#board"), tasks, view === "matrix");
 }
 
 function renderStats(shown) {
@@ -569,7 +571,7 @@ function rowHTML(c, action) {
     <input type="checkbox" data-done="${esc(c.id)}" ${done ? "checked" : ""} ${readOnly ? "disabled" : ""} aria-label="Mark ${esc(c.title)} done">
     <button class="body" type="button" data-open="${esc(c.id)}"><span class="t">${esc(c.title)}</span>
       <span class="meta"><span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>
-      ${c.time ? `<span class="pill time">${esc(c.time)}${c.endTime ? "–" + esc(c.endTime) : ""}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
+      ${c.src === "gcal" ? `<span class="pill gsrc">Google Calendar</span>` : c.src === "gtask" ? `<span class="pill gsrc">Google Tasks</span>` : ""}${c.time ? `<span class="pill time">${esc(c.time)}${c.endTime ? "–" + esc(c.endTime) : ""}</span>` : ""}${c.guests?.length ? `<span class="tag" title="${esc(c.guests.join(", "))}">👥 ${c.guests.length}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
       ${d && !done ? `<span class="pill ${d.cls}">Due ${esc(d.label.toLowerCase() === d.label ? d.label : d.label)}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}</span></button>
     ${action && !readOnly ? action : ""}${readOnly ? "" : `<button class="icon-del" type="button" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</button>`}
@@ -584,7 +586,7 @@ function renderToday(shown) {
   const start = addDays(selDay, -((new Date(selDay + "T00:00:00").getDay() + 6) % 7));
   const days = [...Array(7)].map((_, i) => addDays(start, i));
   const count = d => shown.filter(c => c.day === d && c.col !== "done").length;
-  const open = shown.filter(c => c.col !== "done");
+  const open = shown.filter(c => c.col !== "done" && c.src !== "gcal");
   const planned = shown.filter(c => c.day === selDay).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.time || "99").localeCompare(b.time || "99") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
   const carried = selDay === t ? open.filter(c => c.day && c.day < t) : [];
   const dueHere = open.filter(c => c.due === selDay && c.day !== selDay && !carried.includes(c));
@@ -638,7 +640,7 @@ function evChip(c, due) {
 function dayItems(shown, d) {
   return {
     timed: shown.filter(c => c.day === d && c.time).sort((a, b) => a.time.localeCompare(b.time)),
-    allDay: shown.filter(c => c.day === d && !c.time).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0)),
+    allDay: shown.filter(c => !c.time && (c.day === d || (c.endDay && c.day < d && d <= c.endDay))).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0)),
     due: shown.filter(c => c.due === d && c.col !== "done" && c.day !== d)
   };
 }
@@ -862,6 +864,7 @@ function openCard(id, preset) {
       <div class="field"><label for="f-day">On my day list for</label><input id="f-day" type="date" value="${esc(c.day || "")}" ${dis}>
         ${readOnly ? "" : `<div class="seg"><button class="btn sm" type="button" id="f-day-today">Today</button><button class="btn sm" type="button" id="f-day-tmr">Tomorrow</button><button class="btn sm" type="button" id="f-day-clear">None</button></div>`}</div>
       <div class="field"><label for="f-time">Time (optional)</label><div class="seg"><input id="f-time" type="time" value="${esc(c.time || "")}" aria-label="Start time" ${dis}><span class="hint">to</span><input id="f-end" type="time" value="${esc(c.endTime || "")}" aria-label="End time" ${dis}></div><span class="hint">With a time it goes on Google Calendar. Without one it's an all-day task in Google Tasks.</span></div>
+      <div class="field" style="grid-column:1/-1"><label for="f-guests">Guests (optional)</label><input id="f-guests" type="text" inputmode="email" value="${esc((c.guests || []).join(", "))}" placeholder="name@example.com, another@example.com" ${dis}><span class="hint">For tasks with a time. Google emails them the invite, and updates when you change it.</span></div>
       <div class="field"><label for="f-due">Due date</label><input id="f-due" type="date" value="${esc(c.due || "")}" ${dis}><span class="hint">On your calendar, with emails 14, 7, 3, 2 and 1 days before</span></div>
     </div>
     <div class="field"><label>Repeat <span class="hint">(the next one appears when you tick this off)</span></label>${seg("f-rep", REPEATS, c.repeat || "")}</div>
@@ -918,7 +921,8 @@ function openCard(id, preset) {
     const before = c.col;
     if (isNew || col !== c.col) c.order = Math.min(0, ...cards.filter(x => x.col === col).map(x => x.order ?? 0)) - 1;
     const time = $("#f-time").value || null; let endTime = time ? ($("#f-end").value || null) : null; if (endTime && endTime <= time) endTime = null;
-    Object.assign(c, { title, col, board, time, endTime, due: $("#f-due").value || null, urgent: $("#f-urgent").checked, important: $("#f-important").checked, note: $("#f-note").value, checklist: items.map(i => ({ ...i })), repeat: repeat || null });
+    const guests = $("#f-guests").value.split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+    Object.assign(c, { title, col, board, time, endTime, guests, due: $("#f-due").value || null, urgent: $("#f-urgent").checked, important: $("#f-important").checked, note: $("#f-note").value, checklist: items.map(i => ({ ...i })), repeat: repeat || null });
     if (!repeat) delete c.repeatSpawned;
     const day = $("#f-day").value || null;
     if (isNew || day !== (c.day || null)) { c.day = day; if (day) c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
@@ -981,11 +985,13 @@ async function openGoogle() {
   catch (e) { return openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Google sync isn't switched on yet. Finish the Google setup steps first.</p><div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`), ($("#gx").onclick = closeSheet); }
   const byBoard = Object.fromEntries(accounts.map(a => [a.board, a.email]));
   openSheet(`<h3>Google Calendar and Tasks</h3>
-    <p class="hint">Each area syncs to its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before.</p>
+    <p class="hint">Each area syncs both ways with its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before. Your Google events (2 weeks back to a year ahead) and Google Tasks come into Orbit, and changes on either side carry across.</p>
+    <button class="btn sm" type="button" id="gpull">Sync from Google now</button>
     <div class="list">${config.boards.map(b => `<div class="item"><span class="dot" style="background:${esc(b.color)}"></span><span style="flex:1"><b>${esc(b.name)}</b><br><span class="hint">${byBoard[b.id] ? "Connected: " + esc(byBoard[b.id]) : "Not connected"}</span></span>
       ${byBoard[b.id] ? `<button class="btn sm" type="button" data-gdis="${esc(b.id)}">Disconnect</button>` : `<button class="btn sm primary" type="button" data-gcon="${esc(b.id)}">Connect</button>`}</div>`).join("")}</div>
     <div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`);
   $("#gx").onclick = closeSheet;
+  $("#gpull").onclick = async () => { $("#gpull").disabled = true; const n = await pullGoogle(true); toast(n < 0 ? "Couldn't reach Google. Try again." : n ? `Brought in ${n} change${n > 1 ? "s" : ""} from Google` : "Everything's up to date"); closeSheet(); };
   $(".sheet").addEventListener("click", async e => {
     const con = e.target.closest("[data-gcon]"), dis = e.target.closest("[data-gdis]");
     try {
@@ -1001,6 +1007,17 @@ async function openGoogle() {
     setTimeout(() => toast({ connected: "Google connected. Your tasks are syncing now.", cancelled: "Google connection cancelled.", expired: "That link expired. Try Connect again." }[gp] || "Google didn't finish connecting. Try Connect again."), 800);
   }
 }
+
+// Brings Google Calendar events and Google Tasks into Orbit: on open, every 5 minutes, and when the app comes back to the front.
+let lastPull = 0;
+async function pullGoogle(force) {
+  if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
+  lastPull = Date.now();
+  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; return data?.changed ?? 0; }
+  catch (e) { return -1; }
+}
+setInterval(() => document.visibilityState === "visible" && pullGoogle(), 5 * 60000);
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && pullGoogle());
 
 function show() { if (!readOnly) $("#state").hidden = true; loaded = true; render(); }
 
@@ -1043,6 +1060,7 @@ function start(user) {
   $("#signOut").hidden = false; $("#pasteList").hidden = false; $("#newTask").hidden = false; $("#newTask").disabled = false;
   $("#state").textContent = "Loading your board…"; $("#state").hidden = false;
   db.doc("config/main").onSnapshot(s => { if (s.exists) { const d = s.data(); if (d.boards?.length && d.columns?.length) config = JSON.parse(JSON.stringify(d)); } show(); });
+  setTimeout(() => pullGoogle(true), 1500);
   db.collection("cards").onSnapshot(snap => { cards = snap.docs.map(d => ({ id: d.id, ...d.data() })); show(); });
 }
 

@@ -3,6 +3,8 @@
 //   due date        -> all-day calendar event, with emails 14, 7, 3, 2 and 1 days before
 //   day + time      -> calendar event at that time
 //   day, no time    -> Google Task due that day (ticked off when the card is done)
+// The app also calls it with {action:"pull"} to bring Google into Orbit: events and tasks made in Google
+// become cards (src "gcal" / "gtask"), and edits or ticks made in Google to Orbit's own items come back.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -13,7 +15,8 @@ const TZ = "Australia/Sydney";
 const CAL = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 const TASKS = "https://tasks.googleapis.com/tasks/v1/lists/@default/tasks";
 
-type Doc = { title: string; board: string; col: string; due?: string | null; day?: string | null; time?: string | null; endTime?: string | null; note?: string; urgent?: boolean };
+type Doc = { title: string; board: string; col: string; due?: string | null; day?: string | null; endDay?: string | null; time?: string | null; endTime?: string | null; note?: string; urgent?: boolean; src?: string; guests?: string[]; prevCol?: string; doneAt?: string; [k: string]: unknown };
+const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info" };
 type Want = { body: Record<string, unknown>; hash: string };
 
 const tokens = new Map<string, string>();
@@ -37,6 +40,24 @@ const plusHour = (t: string) => { const [h, m] = t.split(":").map(Number); const
 
 function wanted(d: Doc): Record<string, Want> {
   const out: Record<string, Want> = {};
+  // Cards that came from Google write back to the same event or task, without Orbit's footer.
+  if (d.src === "gcal" && d.day) {
+    const end = d.time ? (d.endTime && d.endTime > d.time ? d.endTime : plusHour(d.time)) : "";
+    const body = d.time
+      ? { summary: d.title, description: d.note || "", start: { dateTime: `${d.day}T${d.time}:00`, timeZone: TZ }, end: { dateTime: `${d.day}T${end}:00`, timeZone: TZ } }
+      : { summary: d.title, description: d.note || "", start: { date: d.day }, end: { date: nextDay(d.endDay && d.endDay > d.day ? d.endDay : d.day) } };
+    const guests = (d.guests || []).slice().sort();
+    if (guests.length) (body as Record<string, unknown>).attendees = guests.map(email => ({ email }));
+    out.event = { body, hash: JSON.stringify(["g", d.title, d.day, d.time || "", end, d.endDay || "", d.note || "", guests]) };
+    return out;
+  }
+  if (d.src === "gtask") {
+    const open = d.col !== "done";
+    const body: Record<string, unknown> = { title: d.title, notes: d.note || "", status: open ? "needsAction" : "completed" };
+    if (d.day) body.due = `${d.day}T00:00:00.000Z`;
+    out.task = { body, hash: JSON.stringify(["g", d.title, d.day || "", d.note || "", open]) };
+    return out;
+  }
   const open = d.col !== "done";
   const title = (d.urgent ? "⚡ " : "") + d.title;
   const desc = [d.note, `From Orbit Ai: ${APP_URL}`].filter(Boolean).join("\n\n");
@@ -47,8 +68,10 @@ function wanted(d: Doc): Record<string, Want> {
   }
   if (d.day && d.time && open) {
     const end = d.endTime && d.endTime > d.time ? d.endTime : plusHour(d.time);
-    const body = { status: "confirmed", summary: title, description: desc, start: { dateTime: `${d.day}T${d.time}:00`, timeZone: TZ }, end: { dateTime: `${d.day}T${end}:00`, timeZone: TZ } };
-    out.event = { body, hash: JSON.stringify([title, d.day, d.time, end, desc]) };
+    const guests = (d.guests || []).slice().sort();
+    const body: Record<string, unknown> = { status: "confirmed", summary: title, description: desc, start: { dateTime: `${d.day}T${d.time}:00`, timeZone: TZ }, end: { dateTime: `${d.day}T${end}:00`, timeZone: TZ } };
+    if (guests.length) body.attendees = guests.map(email => ({ email }));
+    out.event = { body, hash: JSON.stringify(guests.length ? [title, d.day, d.time, end, desc, guests] : [title, d.day, d.time, end, desc]) };
   }
   if (d.day && !d.time) {
     const body = { title, notes: desc, due: `${d.day}T00:00:00.000Z`, status: open ? "needsAction" : "completed" };
@@ -93,9 +116,10 @@ async function syncCard(id: string) {
       if (m && (r.status === 404 || r.status === 410)) r = await g(tok, "POST", TASKS, w.body);
     } else {
       const eid = m?.google_id || eventId(kind, id);
-      r = await g(tok, "PATCH", `${CAL}/${eid}?sendUpdates=none`, w.body);
-      if (r.status === 404 || r.status === 410) r = await g(tok, "POST", `${CAL}?sendUpdates=none`, { id: eid, ...w.body });
-      if (r.status === 409) r = await g(tok, "PATCH", `${CAL}/${eid}?sendUpdates=none`, w.body);
+      const su = (w.body as { attendees?: unknown[] }).attendees?.length ? "all" : "none";
+      r = await g(tok, "PATCH", `${CAL}/${eid}?sendUpdates=${su}`, w.body);
+      if (r.status === 404 || r.status === 410) r = await g(tok, "POST", `${CAL}?sendUpdates=${su}`, { id: eid, ...w.body });
+      if (r.status === 409) r = await g(tok, "PATCH", `${CAL}/${eid}?sendUpdates=${su}`, w.body);
     }
     if (!r.ok) { console.error("google write failed", kind, r.status, await r.text()); continue; }
     const res = await r.json();
@@ -103,8 +127,114 @@ async function syncCard(id: string) {
   }
 }
 
+// ---- Google -> Orbit -------------------------------------------------------------------------
+const local = (iso: string) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map(x => [x.type, x.value]));
+  return { day: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+};
+const prevDay = (d: string) => { const x = new Date(d + "T00:00:00Z"); x.setUTCDate(x.getUTCDate() - 1); return x.toISOString().slice(0, 10); };
+const ORBIT_PREFIX = eventId("", "").slice(0, 10); // hex of "orbit"
+async function listAll(tok: string, url: string, key: string) {
+  const out: any[] = []; let page = "";
+  for (let i = 0; i < 20; i++) {
+    const r = await g(tok, "GET", url + (page ? `&pageToken=${page}` : ""));
+    if (!r.ok) { console.error("list failed", r.status, await r.text()); return null; }
+    const j = await r.json(); out.push(...(j[key] || [])); page = j.nextPageToken; if (!page) break;
+  }
+  return out;
+}
+// Fields of a Google event as Orbit stores them.
+function fromEvent(e: any) {
+  if (e.start?.dateTime) { const s = local(e.start.dateTime), en = local(e.end?.dateTime || e.start.dateTime); return { day: s.day, time: s.time, endTime: en.day === s.day ? en.time : "23:59", endDay: null }; }
+  const day = e.start?.date, last = e.end?.date ? prevDay(e.end.date) : day;
+  return { day, time: null, endTime: null, endDay: last && last > day ? last : null };
+}
+const guestsOf = (e: any) => (e.attendees || []).filter((a: any) => !a.self && !a.resource).map((a: any) => String(a.email).toLowerCase()).sort();
+const strip = (t: string) => String(t || "").replace(/^Due: /, "").replace(/^⚡ /, "");
+
+async function pull(userId: string) {
+  const { data: accs } = await admin.from("google_accounts").select("board").eq("user_id", userId);
+  const { data: rows } = await admin.from("cards").select("id, doc").eq("user_id", userId);
+  const { data: maps } = await admin.from("google_sync_map").select("*").eq("user_id", userId);
+  const cards = new Map((rows || []).map(r => [r.id, r.doc as Doc]));
+  const byGoogle = new Map((maps || []).map(m => [m.board + ":" + m.kind[0] + ":" + m.google_id, m]));
+  const now = new Date(), from = new Date(now.getTime() - 14 * 864e5).toISOString(), to = new Date(now.getTime() + 400 * 864e5).toISOString();
+  let changed = 0;
+  // Writes the card and its map row with the hash Orbit would send, so the push side sees nothing to do.
+  const put = async (id: string, doc: Doc, kind: string, googleId: string) => {
+    const w = wanted(doc)[kind];
+    await admin.from("google_sync_map").upsert({ card_id: id, kind, user_id: userId, board: doc.board, google_id: googleId, hash: w?.hash || null });
+    await admin.from("cards").upsert({ id, user_id: userId, doc, updated_at: new Date().toISOString() });
+    cards.set(id, doc); changed++;
+  };
+  const drop = async (id: string) => { await admin.from("google_sync_map").delete().eq("card_id", id); await admin.from("cards").delete().eq("id", id); cards.delete(id); changed++; };
+
+  for (const { board } of accs || []) {
+    const tok = await accessToken(userId, board); if (!tok) continue;
+
+    const events = await listAll(tok, `${CAL}?singleEvents=true&showDeleted=true&maxResults=2500&timeMin=${encodeURIComponent(from)}&timeMax=${encodeURIComponent(to)}`, "items");
+    for (const e of events || []) {
+      const m = byGoogle.get(board + ":e:" + e.id) || byGoogle.get(board + ":d:" + e.id);
+      const gone = e.status === "cancelled";
+      if (m && !m.card_id.startsWith("gc-")) {
+        // One of Orbit's own items, changed or deleted in Google.
+        const doc = cards.get(m.card_id); if (!doc) continue;
+        if (m.kind === "due") {
+          if (gone) { await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "due"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: { ...doc, due: null } }); changed++; continue; }
+          const day = e.start?.date; if (day && day !== doc.due) await put(m.card_id, { ...doc, due: day }, "due", e.id);
+          continue;
+        }
+        if (gone) { const next = { ...doc, time: null, endTime: null, day: null }; await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "event"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: next }); changed++; continue; }
+        const f = fromEvent(e), title = strip(e.summary);
+        const end = doc.time ? (doc.endTime && doc.endTime > doc.time ? doc.endTime : plusHour(doc.time)) : null;
+        if (f.time && (f.day !== doc.day || f.time !== doc.time || f.endTime !== end || title !== doc.title)) await put(m.card_id, { ...doc, day: f.day, time: f.time, endTime: f.endTime, title }, "event", e.id);
+        continue;
+      }
+      if (e.id.startsWith(ORBIT_PREFIX)) continue;
+      const id = `gc-${board}-${e.id}`, doc = cards.get(id);
+      if (gone) { if (doc) await drop(id); continue; }
+      if (!e.start) continue;
+      const f = fromEvent(e);
+      const next: Doc = { ...(doc || { col: "next", order: 0, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gcal", board, title: e.summary || "(No title)", note: e.description || "", guests: guestsOf(e), ...f } as Doc;
+      if (!doc || JSON.stringify(wanted(next).event?.hash) !== JSON.stringify(wanted(doc).event?.hash)) await put(id, next, "event", e.id);
+    }
+
+    const tasks = await listAll(tok, `${TASKS}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+    for (const t of tasks || []) {
+      const m = byGoogle.get(board + ":t:" + t.id);
+      const gone = !!t.deleted, done = t.status === "completed", day = t.due ? String(t.due).slice(0, 10) : null;
+      if (m && !m.card_id.startsWith("gt-")) {
+        const doc = cards.get(m.card_id); if (!doc) continue;
+        if (gone) { await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "task"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: { ...doc, day: null } }); changed++; continue; }
+        const next = { ...doc };
+        if (done && doc.col !== "done") { next.prevCol = doc.col; next.col = "done"; next.doneAt = new Date().toISOString(); }
+        if (!done && doc.col === "done") { next.col = doc.prevCol && doc.prevCol !== "done" ? doc.prevCol : "next"; delete next.doneAt; }
+        if (day && day !== doc.day) next.day = day;
+        if (t.title && strip(t.title) !== doc.title) next.title = strip(t.title);
+        if (JSON.stringify(next) !== JSON.stringify(doc)) await put(m.card_id, next, "task", t.id);
+        continue;
+      }
+      const id = `gt-${board}-${t.id}`, doc = cards.get(id);
+      if (gone || (!doc && (done || !t.title))) { if (gone && doc) await drop(id); continue; }
+      const next: Doc = { ...(doc || { col: "inbox", order: -Date.now() / 1e6, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gtask", board, title: t.title, note: t.notes || "", day } as Doc;
+      if (done && next.col !== "done") { next.prevCol = next.col; next.col = "done"; next.doneAt = new Date().toISOString(); }
+      if (!done && next.col === "done") { next.col = next.prevCol && next.prevCol !== "done" ? next.prevCol : "inbox"; delete next.doneAt; }
+      if (JSON.stringify(next) !== JSON.stringify(doc)) await put(id, next, "task", t.id);
+    }
+  }
+  return changed;
+}
+
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   const body = await req.json().catch(() => ({}));
+  if (body.action === "pull") {
+    const jwt = (req.headers.get("authorization") || "").replace(/^Bearer /, "");
+    const { data: { user } } = await admin.auth.getUser(jwt);
+    if (!user) return new Response(JSON.stringify({ error: "not signed in" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
+    const changed = await pull(user.id).catch(e => { console.error("pull error", e); return -1; });
+    return new Response(JSON.stringify({ changed }), { headers: { ...cors, "Content-Type": "application/json" } });
+  }
   const ids: string[] = body.ids || (body.id ? [body.id] : []);
   for (const id of ids.slice(0, 500)) { try { await syncCard(String(id)); } catch (e) { console.error("sync error", id, e); } }
   return new Response(JSON.stringify({ synced: ids.length }), { headers: { "Content-Type": "application/json" } });
