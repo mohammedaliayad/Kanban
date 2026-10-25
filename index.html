@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792912781">
+<meta name="build" content="1792912906">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -289,6 +289,15 @@ details.sect[open] summary { margin-bottom: 6px; }
 .brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
 .brand img { width: 30px; height: 30px; border-radius: 8px; }
 .mbtns { display: flex; gap: 8px; }
+.aibtn { color: #2b2f33; background: var(--brand); border-color: var(--brand); }
+.side .btn.ai { display: flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: var(--brand); border: 1px solid color-mix(in srgb, var(--brand) 55%, transparent); border-radius: 12px; padding: 10px 16px; margin-top: -12px; }
+.side .btn.ai:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.aiprev { display: grid; gap: 8px; }
+.aiprev .ait { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.aiprev .ait .body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.aiprev .ait .x { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 4px; }
+.aireply { background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+#ai-text { font-size: 16px; }
 .iconbtn.spin .ic { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; width: 38px; height: 38px; display: grid; place-items: center; cursor: pointer; color: var(--ink); padding: 0; }
@@ -358,6 +367,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 <aside class="side navhost" aria-label="Main">
   <div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div>
   <button class="btn primary" type="button" id="newTask" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+  <button class="btn ai" type="button" data-act="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Ask Orbit AI</button>
   <nav class="snav" id="sideNav"></nav>
   <div><div class="slabel">Areas</div><div class="snav" id="sideAreas"></div></div>
   <div class="sfoot">
@@ -369,7 +379,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 </aside>
 <div class="shell">
 <header class="mtop wrap navhost">
-  <div class="mrow"><div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div><span class="mbtns"><button class="iconbtn" type="button" data-act="refresh" id="refreshBtn" aria-label="Refresh" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button><button class="iconbtn" type="button" data-act="menu" id="menuBtn" aria-label="Menu" hidden><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg></button></span></div>
+  <div class="mrow"><div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div><span class="mbtns"><button class="iconbtn aibtn" type="button" data-act="ai" aria-label="Ask Orbit AI"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button><button class="iconbtn" type="button" data-act="refresh" id="refreshBtn" aria-label="Refresh" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button><button class="iconbtn" type="button" data-act="menu" id="menuBtn" aria-label="Menu" hidden><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg></button></span></div>
   <div class="chips" id="chips"></div>
 </header>
 
@@ -805,6 +815,7 @@ document.addEventListener("keydown", e => {
 let userEmail = "";
 function openMenu() {
   openSheet(`<h3>${esc(userEmail || "Menu")}</h3><div class="menu">
+    <button class="mi" type="button" data-act="ai">Ask Orbit AI</button>
     <button class="mi" type="button" data-act="paste">Paste a list</button>
     <button class="mi" type="button" data-act="google">Google Calendar and Tasks</button>
     <button class="mi" type="button" data-act="boards">Edit boards</button>
@@ -820,6 +831,7 @@ document.addEventListener("click", e => {
     if (act === "google") return openGoogle();
     if (act === "boards") return openBoardsEditor();
     if (act === "paste") return openPasteList();
+    if (act === "ai") return openAI();
     if (act === "signout") return $("#signOut").click();
     return;
   }
@@ -1141,6 +1153,51 @@ function openPasteList() {
   setTimeout(() => $("#pl-text").focus(), 30);
 }
 $("#pasteList").onclick = openPasteList;
+
+// Orbit AI: type (or dictate with the keyboard mic) a messy note; Claude files each task into the right area, day and priority.
+const AREA_ABOUT = { life: "personal, family, home, health, finances", idlvr: "iDlvr delivery business: vehicles, drivers, yard, deliveries, customers", rockbuild: "Rockbuild construction business: sites, quotes, builds, trades, suppliers" };
+function openAI() {
+  openSheet(`<h3>Ask Orbit AI</h3>
+    <div class="field"><label for="ai-text">Type it how you'd say it. Orbit sorts out the area, day, time and priority.</label>
+    <textarea id="ai-text" rows="4" placeholder="Dentist Tuesday 3pm. Renew the Iveco rego by the 30th, urgent. Quote for the Smith job Friday: measure, price, send."></textarea></div>
+    <div id="ai-out"></div>
+    <div class="actions"><span class="hint" id="ai-msg"></span><div class="r"><button class="btn" type="button" id="ai-x">Cancel</button><button class="btn primary" type="button" id="ai-go">Sort it</button></div></div>`);
+  let found = [];
+  $("#ai-x").onclick = closeSheet;
+  const show = (reply) => {
+    $("#ai-out").innerHTML = `${reply ? `<p class="aireply">${esc(reply)}</p>` : ""}<div class="aiprev">${found.map((t, i) => { const b = boardOf(t.board); return `<div class="ait"><div class="body"><b>${esc(t.title)}</b><span class="meta"><span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>
+      ${t.day ? `<span class="pill planned">${esc(fmtDay(t.day, { weekday: "short", day: "numeric", month: "short" }))}${t.time ? " " + esc(t.time) : ""}</span>` : ""}${t.due ? `<span class="pill soon">Due ${esc(fmtDay(t.due, { day: "numeric", month: "short" }))}</span>` : ""}
+      ${t.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${t.important ? `<span class="pill important">Important</span>` : ""}${t.repeat ? `<span class="tag">↻ ${repeatName(t.repeat)}</span>` : ""}${t.checklist?.length ? `<span class="cl-count">☑ ${t.checklist.length}</span>` : ""}${t.guests?.length ? `<span class="tag">👥 ${t.guests.length}</span>` : ""}</span></div>
+      <button class="x" type="button" data-airm="${i}" aria-label="Remove">×</button></div>`; }).join("")}</div>`;
+    $("#ai-go").textContent = found.length ? `Add ${found.length} task${found.length > 1 ? "s" : ""}` : "Sort it";
+  };
+  $("#ai-out").onclick = e => { const r = e.target.closest("[data-airm]"); if (!r) return; found.splice(+r.dataset.airm, 1); show(""); };
+  $("#ai-text").oninput = () => { if (found.length) { found = []; $("#ai-out").innerHTML = ""; $("#ai-go").textContent = "Sort it"; } };
+  $("#ai-go").onclick = async () => {
+    if (found.length) {
+      const made = found.map((t, i) => ({ id: "c" + Date.now().toString(36) + i + Math.random().toString(36).slice(2, 5), title: t.title, board: config.boards.some(b => b.id === t.board) ? t.board : config.boards[0].id,
+        col: config.columns.some(c => c.id === t.col) ? t.col : config.columns[0].id, urgent: !!t.urgent, important: !!t.important, due: t.due || null, day: t.day || null, time: t.day && t.time ? t.time : null,
+        endTime: t.day && t.time && t.endTime > t.time ? t.endTime : null, repeat: t.repeat || null, note: t.note || "", guests: t.guests || [], checklist: (t.checklist || []).map(x => ({ t: x, done: false })),
+        order: Math.min(0, ...cards.map(x => x.order ?? 0)) - 1 - i, dayOrder: 999 + i, created: new Date().toISOString() }));
+      cards.push(...made); closeSheet(); render(); toast(`Added ${made.length} task${made.length > 1 ? "s" : ""}`);
+      for (const c of made) await saveCard(c);
+      return;
+    }
+    const text = $("#ai-text").value.trim(); if (!text) return $("#ai-text").focus();
+    $("#ai-go").disabled = true; $("#ai-msg").textContent = "Thinking…";
+    try {
+      const now = new Date();
+      const { data, error } = await SB.functions.invoke("orbit-ai", { body: { text, today: todayIso(), weekday: now.toLocaleDateString("en-AU", { weekday: "long" }),
+        boards: config.boards.map(b => ({ id: b.id, name: b.name, about: AREA_ABOUT[b.id] || "" })), columns: config.columns.map(c => ({ id: c.id, name: c.name })), defaultBoard: filter !== "all" ? filter : config.boards[0].id } });
+      if (error) { let m = ""; try { m = (await error.context?.json())?.error; } catch (er) {} throw new Error(m || "Orbit AI isn't switched on yet."); }
+      found = data.tasks || []; $("#ai-msg").textContent = found.length ? "Check these, then add." : "";
+      show(data.reply || (found.length ? "" : "I didn't find any tasks in that."));
+    } catch (e) { $("#ai-msg").textContent = e.message || "Couldn't reach Orbit AI. Try again."; }
+    $("#ai-go").disabled = false;
+  };
+  setTimeout(() => $("#ai-text").focus(), 30);
+}
+
 
 function showLogin(msg) {
   document.body.classList.remove("authed"); $("#menuBtn").hidden = true; $("#refreshBtn").hidden = true;
