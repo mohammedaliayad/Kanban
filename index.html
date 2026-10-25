@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792914483">
+<meta name="build" content="1792915034">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1031,7 +1031,7 @@ async function openGoogle() {
   openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Loading…</p>`);
   let accounts = [];
   try { accounts = (await googleCall({ action: "status" })).accounts || []; }
-  catch (e) { return openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Google sync isn't switched on yet. Finish the Google setup steps first.</p><div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`), ($("#gx").onclick = closeSheet); }
+  catch (e) { let m = e.message || ""; try { m = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : m); } catch (er) {} return openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Couldn't reach the google-oauth function (${esc(m)}). Check it's deployed with Verify JWT off.</p><div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`), ($("#gx").onclick = closeSheet); }
   const byBoard = Object.fromEntries(accounts.map(a => [a.board, a.email]));
   openSheet(`<h3>Google Calendar and Tasks</h3>
     <p class="hint">Each area syncs both ways with its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before. Your Google events (2 weeks back to a year ahead) and Google Tasks come into Orbit, and changes on either side carry across.</p>
