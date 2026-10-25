@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792915567">
+<meta name="build" content="1792915882">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -98,7 +98,8 @@ main { padding-block: 14px 32px; }
 .ptitle { display: none; font-family: var(--f-display); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; }
 .views.dash { display: grid; gap: 22px; }
 .views.dash .ptitle { display: block; }
-.views.dash .daycols { grid-template-columns: 1fr; }
+.views.dash .daycols { grid-template-columns: minmax(0, 1fr); }
+.today > *, .daycols > *, .sect, .tlist { min-width: 0; }
 .views.dash .board:not(.matrix) { grid-auto-columns: minmax(220px, 1fr); }
 .views.dash .panel { min-width: 0; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
@@ -160,7 +161,9 @@ main { padding-block: 14px 32px; }
 .agenda .ag-d { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0; }
 .agenda .ag-it { display: flex; gap: 10px; align-items: baseline; width: 100%; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--ink); border-radius: 6px; padding: 6px 10px; margin: 4px 0; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
 .agenda .ag-t { flex: none; width: 92px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.agenda .ag-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda .ag-n { min-width: 0; overflow-wrap: anywhere; }
+.agenda .ag-it.task { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--brand); }
+.agenda .ag-it.task .ag-n::before { width: 11px; height: 11px; background: transparent; border: 2px solid var(--a); box-sizing: border-box; }
 .agenda .ag-n::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--a); margin-right: 6px; vertical-align: 1px; }
 .ev { display: block; width: auto; min-width: 0; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 30%, var(--surface)); color: var(--ink); border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 11px; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cw-col .ev { white-space: normal; z-index: 1; }
@@ -633,14 +636,14 @@ function rowHTML(c, action) {
 function planOn(c, day) { c.day = day; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
 
 // My day: a Google Tasks style list for one date. Cards join a day through their "day" field.
+const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? esc(c.time) + (c.endTime ? "–" + esc(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`;
 // Dashboard: the next 7 days of events and scheduled tasks, like Google Calendar's schedule view.
 function agendaHTML(shown) {
   const t = todayIso(), days = [...Array(7)].map((_, i) => addDays(t, i));
   const groups = days.map(d => ({ d, list: shown.filter(c => c.col !== "done" && (c.day === d || (c.endDay && c.day < d && d <= c.endDay)))
     .sort((a, b) => (a.time || "").localeCompare(b.time || "")) })).filter(g => g.list.length);
   const label = d => d === t ? "Today" : d === addDays(t, 1) ? "Tomorrow" : fmtDay(d, { weekday: "long", day: "numeric", month: "short" });
-  return `<section class="sect agenda"><h3>Coming up this week</h3>${groups.length ? groups.map(g => `<div class="ag-day"><div class="ag-d">${label(g.d)}</div>${g.list.map(c =>
-    `<button class="ag-it" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? esc(c.time) + (c.endTime ? "–" + esc(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`).join("")}</div>`).join("")
+  return `<section class="sect agenda"><h3>Coming up this week <span class="hint ag-key">● event&nbsp;&nbsp;○ task</span></h3>${groups.length ? groups.map(g => `<div class="ag-day"><div class="ag-d">${label(g.d)}</div>${g.list.map(agItem).join("")}</div>`).join("")
     : `<p class="hint">Nothing scheduled in the next 7 days.</p>`}</section>`;
 }
 function renderToday(shown) {
@@ -649,7 +652,8 @@ function renderToday(shown) {
   const days = [...Array(7)].map((_, i) => addDays(start, i));
   const count = d => shown.filter(c => c.day === d && c.col !== "done").length;
   const open = shown.filter(c => c.col !== "done" && c.src !== "gcal");
-  const planned = shown.filter(c => c.day === selDay).sort((a, b) => (a.col === "done") - (b.col === "done") || (a.time || "99").localeCompare(b.time || "99") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
+  const dayEvents = shown.filter(c => c.src === "gcal" && (c.day === selDay || (c.endDay && c.day < selDay && selDay <= c.endDay))).sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+  const planned = shown.filter(c => c.day === selDay && c.src !== "gcal").sort((a, b) => (a.col === "done") - (b.col === "done") || (a.time || "99").localeCompare(b.time || "99") || (a.dayOrder ?? 0) - (b.dayOrder ?? 0));
   const carried = selDay === t ? open.filter(c => c.day && c.day < t) : [];
   const dueHere = open.filter(c => c.due === selDay && c.day !== selDay && !carried.includes(c));
   const others = open.filter(c => c.day !== selDay && !carried.includes(c) && !dueHere.includes(c)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (a.order ?? 0) - (b.order ?? 0));
@@ -671,6 +675,7 @@ function renderToday(shown) {
       <div class="r">${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
     <div class="daycols"><div class="daymain">
+    ${dayEvents.length ? `<section class="sect agenda"><h3>Events</h3>${dayEvents.map(agItem).join("")}</section>` : ""}
     <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board.</div>`}</div></section>
     </div><div class="dayside">
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
