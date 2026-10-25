@@ -201,6 +201,18 @@ details.sect[open] summary { margin-bottom: 6px; }
 .plflags { display: flex; gap: 18px; margin: 4px 0 8px; }
 .plflags label { display: flex; gap: 6px; align-items: center; }
 .plflags input { width: 18px; height: 18px; accent-color: var(--accent); }
+.meta .card-day { margin-left: auto; }
+.trow .acts { display: flex; gap: 8px; align-items: center; flex: none; }
+@media (max-width: 600px) {
+  .trow { flex-wrap: wrap; row-gap: 8px; }
+  .trow .body { flex: 1 1 calc(100% - 40px); }
+  .trow .acts { flex-basis: 100%; padding-left: 32px; }
+  .trow .acts .icon-del { margin-left: auto; }
+  .trow .acts:has(> .icon-del:only-child) { flex-basis: auto; padding-left: 0; }
+  .trow:has(.acts > .icon-del:only-child) { flex-wrap: nowrap; }
+  .dayhead .r label { display: none; }
+  .dayhead h2 { font-size: 22px; }
+}
 .card-day { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; font-size: 12px; font-weight: 600; padding: 2px 9px; cursor: pointer; }
 .card-day:hover { border-color: var(--accent); color: var(--accent); }
 .card-day.on { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
@@ -574,7 +586,7 @@ function rowHTML(c, action) {
       ${c.src === "gcal" ? `<span class="pill gsrc">Google Calendar</span>` : c.src === "gtask" ? `<span class="pill gsrc">Google Tasks</span>` : ""}${c.time ? `<span class="pill time">${esc(c.time)}${c.endTime ? "–" + esc(c.endTime) : ""}</span>` : ""}${c.guests?.length ? `<span class="tag" title="${esc(c.guests.join(", "))}">👥 ${c.guests.length}</span>` : ""}${c.urgent ? `<span class="pill urgent">Urgent</span>` : ""}${c.important ? `<span class="pill important">Important</span>` : ""}
       ${d && !done ? `<span class="pill ${d.cls}">Due ${esc(d.label.toLowerCase() === d.label ? d.label : d.label)}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}</span></button>
-    ${action && !readOnly ? action : ""}${readOnly ? "" : `<button class="icon-del" type="button" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</button>`}
+    <span class="acts">${action && !readOnly ? action : ""}${readOnly ? "" : `<button class="icon-del" type="button" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</button>`}</span>
   </div>`;
 }
 
@@ -736,7 +748,7 @@ $("#today").addEventListener("click", async e => {
 function cardHTML(c) {
   const b = boardOf(c.board), d = dueInfo(c.due);
   return `<button class="card" draggable="${!readOnly}" data-id="${esc(c.id)}">
-    <span class="ctop"><span class="t">${esc(c.title)}</span>${readOnly || c.col === "done" ? "" : `<span class="card-day ${c.day === todayIso() ? "on" : ""}" role="button" tabindex="0" data-today="${esc(c.id)}" title="${c.day === todayIso() ? "On today's list (tap to take off)" : "Put on today's list"}">${c.day === todayIso() ? "✓ Today" : "+ Today"}</span>`}${readOnly ? "" : `<span class="card-del" role="button" tabindex="0" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</span>`}</span>
+    <span class="ctop"><span class="t">${esc(c.title)}</span>${readOnly ? "" : `<span class="card-del" role="button" tabindex="0" data-del="${esc(c.id)}" aria-label="Delete ${esc(c.title)}" title="Delete">${TRASH}</span>`}</span>
     <span class="meta">
       ${filter === "all" ? `<span class="tag"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)}</span>` : ""}
       ${view === "matrix" ? `<span class="tag">${esc(config.columns.find(x => x.id === c.col)?.name || "")}</span>` : ""}
@@ -746,6 +758,7 @@ function cardHTML(c) {
       ${c.day && c.day !== todayIso() && c.col !== "done" ? `<span class="pill planned">${esc(fmtDay(c.day, { weekday: "short", day: "numeric", month: "short" }))}</span>` : ""}
       ${c.repeat ? `<span class="tag">↻ ${repeatName(c.repeat)}</span>` : ""}${clCount(c)}
       ${c.note ? `<span class="note-ic" title="Has notes">≡</span>` : ""}
+      ${readOnly || c.col === "done" ? "" : `<span class="card-day ${c.day === todayIso() ? "on" : ""}" role="button" tabindex="0" data-today="${esc(c.id)}" title="${c.day === todayIso() ? "On today's list (tap to take off)" : "Put on today's list"}">${c.day === todayIso() ? "✓ Today" : "+ Today"}</span>`}
     </span></button>`;
 }
 
