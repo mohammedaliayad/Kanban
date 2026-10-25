@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792915102">
+<meta name="build" content="1792915293">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -155,8 +155,10 @@ main { padding-block: 14px 32px; }
 .cw-col .ev { position: absolute; margin: 0 1px; }
 .nowline { position: absolute; left: 0; right: 0; height: 2px; background: var(--urgent); z-index: 2; pointer-events: none; }
 .nowline::before { content: ""; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--urgent); }
-.ev { display: block; width: auto; min-width: 0; border: 0; border-left: 3px solid var(--c, var(--accent)); background: color-mix(in srgb, var(--c, var(--accent)) 18%, var(--surface)); color: var(--ink); border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 11px; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev { display: block; width: auto; min-width: 0; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 30%, var(--surface)); color: var(--ink); border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 11px; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cw-col .ev { white-space: normal; z-index: 1; }
+.ev::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--a, transparent); margin-right: 4px; vertical-align: 1px; }
+.ev.due::before { display: none; }
 .ev small { display: block; opacity: .75; font-size: 10px; }
 .ev.done { opacity: .5; text-decoration: line-through; }
 .ev.due { background: transparent; border: 1px dashed var(--urgent); border-left-width: 3px; color: var(--urgent); }
@@ -679,7 +681,7 @@ function addMonths(s, n) {
 }
 function evChip(c, due) {
   const b = boardOf(c.board);
-  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""}" type="button" data-open="${esc(c.id)}" style="--c:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : c.time ? `<span class="evt">${esc(c.time)} </span>` : ""}${esc(c.title)}</button>`;
+  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""}" type="button" data-open="${esc(c.id)}" style="--a:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : c.time ? `<span class="evt">${esc(c.time)} </span>` : ""}${esc(c.title)}</button>`;
 }
 function dayItems(shown, d) {
   return {
@@ -718,7 +720,7 @@ function renderCal(shown) {
       <div class="cw-row cw-all"><div class="gut">All day</div>${days.map((d, i) => `<div class="cw-adcell" data-slot="${d}">${items[i].due.map(c => evChip(c, true)).join("")}${items[i].allDay.map(c => evChip(c)).join("")}</div>`).join("")}</div>
       <div class="cal-scroll"><div class="cw-row cw-grid" style="height:${24 * HOUR}px">
         <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${String(h + 1).padStart(2, "0")}:00</span>`).join("")}</div>
-        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--c:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(18, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n});width:calc(100% / ${x.n} - 2px)">${esc(x.c.title)}<small>${esc(x.c.time)}${x.c.endTime ? "–" + esc(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
+        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(18, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n});width:calc(100% / ${x.n} - 2px)">${esc(x.c.title)}<small>${esc(x.c.time)}${x.c.endTime ? "–" + esc(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
       </div></div></div></section>`;
   }
   const first = selDay.slice(0, 8) + "01", start = weekStart(first);
