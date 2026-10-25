@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792917434">
+<meta name="build" content="1792917800">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -185,6 +185,8 @@ main { padding-block: 14px 32px; }
 .ev.due::before { display: none; }
 .ev small { display: block; opacity: .75; font-size: 10px; }
 .ev.done { opacity: .5; text-decoration: line-through; }
+.ev.ghost { background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-left-style: dashed; }
+.ev.ghost::after { content: " ↻"; opacity: .6; }
 .evtick { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--ink); border-radius: 50%; margin-right: 4px; vertical-align: -2px; cursor: pointer; flex: none; background: var(--surface); }
 .evtick:hover { background: color-mix(in srgb, var(--accent) 25%, var(--surface)); }
 .evtick.on { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
@@ -508,6 +510,7 @@ function nextDate(day, rule) {
 // Like Google Tasks: ticking off a repeating task creates its next copy.
 async function spawnNext(c) {
   if (!c.repeat || c.repeatSpawned) return;
+  if (c.src === "gtask") return; // Google makes the next copy of its own repeating tasks; it arrives on the next sync
   const base = c.day || todayIso(), day = nextDate(base, c.repeat);
   const shift = Math.round((new Date(day + "T00:00:00") - new Date(base + "T00:00:00")) / 864e5);
   const { id, doneAt, prevCol, repeatSpawned, ...rest } = c;
@@ -674,6 +677,7 @@ const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" typ
 // Dashboard: the next 7 days of events and scheduled tasks, like Google Calendar's schedule view.
 function agendaHTML(shown) {
   const t = todayIso(), days = [...Array(7)].map((_, i) => addDays(t, i));
+  shown = withRepeats(shown, addDays(t, 7));
   const groups = days.map(d => ({ d, list: shown.filter(c => c.col !== "done" && (c.day === d || (c.endDay && c.day < d && d <= c.endDay)))
     .sort((a, b) => (a.time || "").localeCompare(b.time || "")) })).filter(g => g.list.length);
   const label = d => d === t ? "Today" : d === addDays(t, 1) ? "Tomorrow" : fmtDay(d, { weekday: "long", day: "numeric", month: "short" });
@@ -738,10 +742,10 @@ function addMonths(s, n) {
   d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
   return iso(d);
 }
-const tickHTML = c => c.src === "gcal" || readOnly ? "" : `<span class="evtick ${c.col === "done" ? "on" : ""}" role="checkbox" aria-checked="${c.col === "done"}" aria-label="Mark ${esc(c.title)} done" data-tick="${esc(c.id)}"></span>`;
+const tickHTML = c => c.src === "gcal" || c.ghost || readOnly ? "" : `<span class="evtick ${c.col === "done" ? "on" : ""}" role="checkbox" aria-checked="${c.col === "done"}" aria-label="Mark ${esc(c.title)} done" data-tick="${esc(c.id)}"></span>`;
 function evChip(c, due) {
   const b = boardOf(c.board);
-  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""}" type="button" data-open="${esc(c.id)}" style="--a:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : tickHTML(c) + (c.time ? `<span class="evt">${tm(c.time)} </span>` : "")}${esc(c.title)}</button>`;
+  return `<button class="ev ${due ? "due" : ""} ${c.col === "done" ? "done" : ""} ${c.ghost ? "ghost" : ""}" type="button" data-open="${esc(c.id)}" style="--a:${esc(b.color)}" title="${esc(c.title)}">${due ? "Due: " : tickHTML(c) + (c.time ? `<span class="evt">${tm(c.time)} </span>` : "")}${esc(c.title)}</button>`;
 }
 function dayItems(shown, d) {
   return {
@@ -763,7 +767,19 @@ function layoutDay(list) {
   flush();
   return ev;
 }
+// Future repeats of a repeating task, drawn on the calendar like Google does. Only the next real copy exists;
+// these are previews that open the real task and can't be ticked.
+function withRepeats(list, until) {
+  const out = [...list];
+  for (const c of list) {
+    if (!c.repeat || c.repeatSpawned || !c.day || c.src === "gcal") continue;
+    let d = c.day;
+    for (let i = 0; i < 400; i++) { d = nextDate(d, c.repeat); if (d > until) break; out.push({ ...c, day: d, col: "next", ghost: true }); }
+  }
+  return out;
+}
 function renderCal(shown) {
+  shown = withRepeats(shown, addDays(selDay, 45));
   const t = todayIso(), week = calMode !== "month", one = calMode === "day";
   const bar = `<div class="calbar"><div class="calnav">
       <button class="btn nav" type="button" data-calnav="-1" aria-label="${week ? "Previous day" : "Previous month"}">‹</button>
@@ -780,7 +796,7 @@ function renderCal(shown) {
       <div class="cw-row cw-all"><div class="gut">All day</div>${days.map((d, i) => `<div class="cw-adcell" data-slot="${d}">${items[i].due.map(c => evChip(c, true)).join("")}${items[i].allDay.map(c => evChip(c)).join("")}</div>`).join("")}</div>
       <div class="cal-scroll"><div class="cw-row cw-grid" style="height:${24 * HOUR}px">
         <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${tm(h + 1 + ":00", true)}</span>`).join("")}</div>
-        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""} ${x.e - x.s < 45 ? "short" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(22, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n + 1});width:calc(100% - ${x.lane} * 100% / ${x.n + 1} - 2px);z-index:${1 + x.lane}">${tickHTML(x.c)}${esc(x.c.title)}<small>${tm(x.c.time)}${x.c.endTime ? "–" + tm(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
+        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""} ${x.e - x.s < 45 ? "short" : ""} ${x.c.ghost ? "ghost" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(22, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n + 1});width:calc(100% - ${x.lane} * 100% / ${x.n + 1} - 2px);z-index:${1 + x.lane}">${tickHTML(x.c)}${esc(x.c.title)}<small>${tm(x.c.time)}${x.c.endTime ? "–" + tm(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
       </div></div></div></section>`;
   }
   const first = selDay.slice(0, 8) + "01", start = weekStart(first);
