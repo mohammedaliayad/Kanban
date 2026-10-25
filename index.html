@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
-<meta name="build" content="1792915293">
+<meta name="build" content="1792915567">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -155,6 +155,13 @@ main { padding-block: 14px 32px; }
 .cw-col .ev { position: absolute; margin: 0 1px; }
 .nowline { position: absolute; left: 0; right: 0; height: 2px; background: var(--urgent); z-index: 2; pointer-events: none; }
 .nowline::before { content: ""; position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--urgent); }
+.agenda .ag-day { padding: 6px 0; border-top: 1px solid var(--line); }
+.agenda .ag-day:first-of-type { border-top: 0; }
+.agenda .ag-d { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0; }
+.agenda .ag-it { display: flex; gap: 10px; align-items: baseline; width: 100%; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--ink); border-radius: 6px; padding: 6px 10px; margin: 4px 0; font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.agenda .ag-t { flex: none; width: 92px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.agenda .ag-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda .ag-n::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--a); margin-right: 6px; vertical-align: 1px; }
 .ev { display: block; width: auto; min-width: 0; border: 0; border-left: 3px solid var(--brand); background: color-mix(in srgb, var(--brand) 30%, var(--surface)); color: var(--ink); border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 11px; line-height: 1.25; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cw-col .ev { white-space: normal; z-index: 1; }
 .ev::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--a, transparent); margin-right: 4px; vertical-align: 1px; }
@@ -626,6 +633,16 @@ function rowHTML(c, action) {
 function planOn(c, day) { c.day = day; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
 
 // My day: a Google Tasks style list for one date. Cards join a day through their "day" field.
+// Dashboard: the next 7 days of events and scheduled tasks, like Google Calendar's schedule view.
+function agendaHTML(shown) {
+  const t = todayIso(), days = [...Array(7)].map((_, i) => addDays(t, i));
+  const groups = days.map(d => ({ d, list: shown.filter(c => c.col !== "done" && (c.day === d || (c.endDay && c.day < d && d <= c.endDay)))
+    .sort((a, b) => (a.time || "").localeCompare(b.time || "")) })).filter(g => g.list.length);
+  const label = d => d === t ? "Today" : d === addDays(t, 1) ? "Tomorrow" : fmtDay(d, { weekday: "long", day: "numeric", month: "short" });
+  return `<section class="sect agenda"><h3>Coming up this week</h3>${groups.length ? groups.map(g => `<div class="ag-day"><div class="ag-d">${label(g.d)}</div>${g.list.map(c =>
+    `<button class="ag-it" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? esc(c.time) + (c.endTime ? "–" + esc(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`).join("")}</div>`).join("")
+    : `<p class="hint">Nothing scheduled in the next 7 days.</p>`}</section>`;
+}
 function renderToday(shown) {
   const t = todayIso();
   const start = addDays(selDay, -((new Date(selDay + "T00:00:00").getDay() + 6) % 7));
@@ -657,6 +674,7 @@ function renderToday(shown) {
     <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board.</div>`}</div></section>
     </div><div class="dayside">
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
+    ${full ? "" : agendaHTML(shown)}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
     ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your board (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
     </div></div>

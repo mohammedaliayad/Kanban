@@ -105,6 +105,8 @@ async function syncCard(id: string) {
     const doneEvent = kind === "event" && doc.col === "done" && m.board === doc.board;
     if (!keep && !doneEvent) { await remove(m); existing.delete(kind); }
   }
+  // Items the pull just wrote already match Google: stop before touching Google at all.
+  if (Object.entries(want).every(([kind, w]) => existing.get(kind)?.hash === w.hash)) return;
   const tok = await accessToken(row.user_id, doc.board);
   if (!tok) return; // that area has no Google account connected
   for (const [kind, w] of Object.entries(want)) {
@@ -158,16 +160,20 @@ async function pull(userId: string) {
   const { data: maps } = await admin.from("google_sync_map").select("*").eq("user_id", userId);
   const cards = new Map((rows || []).map(r => [r.id, r.doc as Doc]));
   const byGoogle = new Map((maps || []).map(m => [m.board + ":" + m.kind[0] + ":" + m.google_id, m]));
-  const now = new Date(), from = new Date(now.getTime() - 14 * 864e5).toISOString(), to = new Date(now.getTime() + 400 * 864e5).toISOString();
+  const now = new Date(), from = new Date(now.getTime() - 14 * 864e5).toISOString(), to = new Date(now.getTime() + 183 * 864e5).toISOString();
   let changed = 0;
-  // Writes the card and its map row with the hash Orbit would send, so the push side sees nothing to do.
+  // Writes are queued and sent in bulk at the end: a big calendar has thousands of event instances, and one
+  // request per item runs the function out of time. Map rows carry the hash Orbit would send, so the push side sees nothing to do.
+  const mapQ = new Map<string, any>(), cardQ = new Map<string, any>(), dropQ = new Set<string>();
   const put = async (id: string, doc: Doc, kind: string, googleId: string) => {
     const w = wanted(doc)[kind];
-    await admin.from("google_sync_map").upsert({ card_id: id, kind, user_id: userId, board: doc.board, google_id: googleId, hash: w?.hash || null });
-    await admin.from("cards").upsert({ id, user_id: userId, doc, updated_at: new Date().toISOString() });
-    cards.set(id, doc); changed++;
+    mapQ.set(id + ":" + kind, { card_id: id, kind, user_id: userId, board: doc.board, google_id: googleId, hash: w?.hash || null });
+    cardQ.set(id, { id, user_id: userId, doc, updated_at: new Date().toISOString() });
+    dropQ.delete(id); cards.set(id, doc); changed++;
   };
-  const drop = async (id: string) => { await admin.from("google_sync_map").delete().eq("card_id", id); await admin.from("cards").delete().eq("id", id); cards.delete(id); changed++; };
+  const save = (id: string, doc: Doc) => { cardQ.set(id, { id, user_id: userId, doc, updated_at: new Date().toISOString() }); cards.set(id, doc); changed++; };
+  const unmap = async (id: string, kind: string) => { mapQ.delete(id + ":" + kind); await admin.from("google_sync_map").delete().eq("card_id", id).eq("kind", kind); };
+  const drop = async (id: string) => { dropQ.add(id); cardQ.delete(id); cards.delete(id); changed++; };
 
   for (const { board } of accs || []) {
     const tok = await accessToken(userId, board); if (!tok) continue;
@@ -180,11 +186,11 @@ async function pull(userId: string) {
         // One of Orbit's own items, changed or deleted in Google.
         const doc = cards.get(m.card_id); if (!doc) continue;
         if (m.kind === "due") {
-          if (gone) { await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "due"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: { ...doc, due: null } }); changed++; continue; }
+          if (gone) { await unmap(m.card_id, "due"); save(m.card_id, { ...doc, due: null }); continue; }
           const day = e.start?.date; if (day && day !== doc.due) await put(m.card_id, { ...doc, due: day }, "due", e.id);
           continue;
         }
-        if (gone) { const next = { ...doc, time: null, endTime: null, day: null }; await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "event"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: next }); changed++; continue; }
+        if (gone) { await unmap(m.card_id, "event"); save(m.card_id, { ...doc, time: null, endTime: null, day: null }); continue; }
         const f = fromEvent(e), title = strip(e.summary);
         const end = doc.time ? (doc.endTime && doc.endTime > doc.time ? doc.endTime : plusHour(doc.time)) : null;
         if (f.time && (f.day !== doc.day || f.time !== doc.time || f.endTime !== end || title !== doc.title)) await put(m.card_id, { ...doc, day: f.day, time: f.time, endTime: f.endTime, title }, "event", e.id);
@@ -200,13 +206,16 @@ async function pull(userId: string) {
       if (!doc || JSON.stringify(wanted(next).event?.hash) !== JSON.stringify(wanted(doc).event?.hash)) await put(id, next, "event", e.id);
     }
 
-    const tasks = await listAll(tok, `${TASKS}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+    // Every open task however old, plus anything completed or deleted lately.
+    const open = await listAll(tok, `${TASKS}?showCompleted=false&maxResults=100`, "items");
+    const recent = await listAll(tok, `${TASKS}?showCompleted=true&showHidden=true&showDeleted=true&maxResults=100&updatedMin=${encodeURIComponent(new Date(now.getTime() - 60 * 864e5).toISOString())}`, "items");
+    const tasks = open || recent ? [...new Map([...(open || []), ...(recent || [])].map(t => [t.id, t])).values()] : null;
     for (const t of tasks || []) {
       const m = byGoogle.get(board + ":t:" + t.id);
       const gone = !!t.deleted, done = t.status === "completed", day = t.due ? String(t.due).slice(0, 10) : null;
       if (m && !m.card_id.startsWith("gt-")) {
         const doc = cards.get(m.card_id); if (!doc) continue;
-        if (gone) { await admin.from("google_sync_map").delete().eq("card_id", m.card_id).eq("kind", "task"); await admin.from("cards").upsert({ id: m.card_id, user_id: userId, doc: { ...doc, day: null } }); changed++; continue; }
+        if (gone) { await unmap(m.card_id, "task"); save(m.card_id, { ...doc, day: null }); continue; }
         const next = { ...doc };
         if (done && doc.col !== "done") { next.prevCol = doc.col; next.col = "done"; next.doneAt = new Date().toISOString(); }
         if (!done && doc.col === "done") { next.col = doc.prevCol && doc.prevCol !== "done" ? doc.prevCol : "next"; delete next.doneAt; }
@@ -223,6 +232,10 @@ async function pull(userId: string) {
       if (JSON.stringify(next) !== JSON.stringify(doc)) await put(id, next, "task", t.id);
     }
   }
+  const chunks = <T,>(a: T[]) => Array.from({ length: Math.ceil(a.length / 500) }, (_, i) => a.slice(i * 500, i * 500 + 500));
+  for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
+  for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
+  for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
   return changed;
 }
 
