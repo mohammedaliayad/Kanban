@@ -339,7 +339,7 @@ function renderChips() {
   let h = `<span class="seg view"><button class="chip" data-v="today" aria-pressed="${view === "today"}">My day</button><button class="chip" data-v="kanban" aria-pressed="${view === "kanban"}">Kanban</button><button class="chip" data-v="matrix" aria-pressed="${view === "matrix"}">Urgent / Important</button></span><span class="sep"></span>`;
   h += `<button class="chip" data-f="all" aria-pressed="${filter === "all"}">All <span class="n">${total}</span></button>`;
   for (const b of config.boards) h += `<button class="chip" data-f="${esc(b.id)}" aria-pressed="${filter === b.id}"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)} <span class="n">${counts[b.id] || 0}</span></button>`;
-  if (!readOnly) h += `<button class="chip ghost" id="editBoards">Edit boards</button>`;
+  if (!readOnly) h += `<button class="chip ghost" id="editBoards">Edit boards</button><button class="chip ghost" id="googleBtn">Google</button>`;
   $("#chips").innerHTML = h;
 }
 
@@ -507,6 +507,7 @@ document.addEventListener("keydown", e => {
 
 $("#chips").addEventListener("click", e => {
   if (e.target.closest("#editBoards")) return openBoardsEditor();
+  if (e.target.closest("#googleBtn")) return openGoogle();
   const v = e.target.closest("[data-v]");
   if (v) { view = v.dataset.v; try { localStorage.setItem("kb.view", view); } catch (er) {} return render(); }
   const c = e.target.closest("[data-f]"); if (!c) return;
@@ -673,6 +674,41 @@ function openBoardsEditor() {
     };
   };
   draw(); bind();
+}
+
+// Google Calendar + Tasks: one Google account per area, connected through the google-oauth function.
+const GOOGLE_HINT = { life: "ma@ayad.family", idlvr: "ma@idlvr.com.au", rockbuild: "ma@rockbuild.co" };
+async function googleCall(body) {
+  const { data, error } = await SB.functions.invoke("google-oauth", { body });
+  if (error) throw error;
+  return data;
+}
+async function openGoogle() {
+  openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Loading…</p>`);
+  let accounts = [];
+  try { accounts = (await googleCall({ action: "status" })).accounts || []; }
+  catch (e) { return openSheet(`<h3>Google Calendar and Tasks</h3><p class="hint">Google sync isn't switched on yet. Finish the Google setup steps first.</p><div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`), ($("#gx").onclick = closeSheet); }
+  const byBoard = Object.fromEntries(accounts.map(a => [a.board, a.email]));
+  openSheet(`<h3>Google Calendar and Tasks</h3>
+    <p class="hint">Each area syncs to its own Google account. Tasks with a time go on Google Calendar, all-day tasks on a day go to Google Tasks, and due dates go on the calendar with email reminders 14, 7, 3, 2 and 1 days before.</p>
+    <div class="list">${config.boards.map(b => `<div class="item"><span class="dot" style="background:${esc(b.color)}"></span><span style="flex:1"><b>${esc(b.name)}</b><br><span class="hint">${byBoard[b.id] ? "Connected: " + esc(byBoard[b.id]) : "Not connected"}</span></span>
+      ${byBoard[b.id] ? `<button class="btn sm" type="button" data-gdis="${esc(b.id)}">Disconnect</button>` : `<button class="btn sm primary" type="button" data-gcon="${esc(b.id)}">Connect</button>`}</div>`).join("")}</div>
+    <div class="actions"><span></span><button class="btn" type="button" id="gx">Close</button></div>`);
+  $("#gx").onclick = closeSheet;
+  $(".sheet").addEventListener("click", async e => {
+    const con = e.target.closest("[data-gcon]"), dis = e.target.closest("[data-gdis]");
+    try {
+      if (con) { con.disabled = true; const { url } = await googleCall({ action: "start", board: con.dataset.gcon, hint: GOOGLE_HINT[con.dataset.gcon] }); location.href = url; }
+      if (dis) { dis.disabled = true; await googleCall({ action: "disconnect", board: dis.dataset.gdis }); toast("Disconnected"); openGoogle(); }
+    } catch (er) { toast("Couldn't reach Google sync. Try again."); }
+  });
+}
+{
+  const gp = new URLSearchParams(location.search).get("google");
+  if (gp) {
+    history.replaceState(null, "", location.pathname);
+    setTimeout(() => toast({ connected: "Google connected. Your tasks are syncing now.", cancelled: "Google connection cancelled.", expired: "That link expired. Try Connect again." }[gp] || "Google didn't finish connecting. Try Connect again."), 800);
+  }
 }
 
 function show() { if (!readOnly) $("#state").hidden = true; loaded = true; render(); }
