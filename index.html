@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792918345">
+<meta name="build" content="1792918889">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -115,7 +115,7 @@ main { padding-block: 14px 32px; }
   .views.dash .p-stats { grid-area: stats; } .views.dash .p-today { grid-area: today; } .views.dash .p-board { grid-area: board; } .views.dash .p-matrix { grid-area: matrix; }
 }
 .daycols { display: grid; gap: 14px; align-items: start; }
-.dayside { display: grid; gap: 14px; }
+.dayside, .daymain { display: grid; gap: 14px; }
 @media (min-width: 1000px) { .daycols { grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: 24px; } .week .num { font-size: 22px; } }
 .week { display: grid; grid-template-columns: auto repeat(7, minmax(0, 1fr)) auto; gap: 5px; align-items: stretch; }
 .week .nav { padding: 6px 10px; font-size: 18px; line-height: 1; }
@@ -261,7 +261,7 @@ details.sect[open] summary { margin-bottom: 6px; }
 .trow .acts { display: flex; gap: 8px; align-items: center; flex: none; }
 @media (max-width: 600px) {
   .trow { flex-wrap: wrap; row-gap: 8px; }
-  .trow .body { flex: 1 1 calc(100% - 40px); }
+  .trow .body { flex: 1 1 0; }
   .trow .acts { flex-basis: 100%; padding-left: 32px; }
   .trow .acts .icon-del { margin-left: auto; }
   .trow .acts:has(> .icon-del:only-child) { flex-basis: auto; padding-left: 0; }
@@ -395,6 +395,10 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   .today.full .cal-scroll { max-height: calc(100vh - 230px); }
   .today.full .cm-cell { min-height: calc((100vh - 300px) / 6); }
   .today.full .dayhead .r { width: 100%; }
+  .today.full .trow { flex-wrap: wrap; row-gap: 8px; }
+  .today.full .trow .body { flex: 1 1 0; }
+  .today.full .trow .acts { flex-basis: 100%; padding-left: 52px; }
+  .today.full .trow .acts .icon-del { margin-left: auto; }
 }
 @keyframes sheetup { from { transform: translateY(40px); opacity: .5; } }
 @media (min-width: 1000px) {
@@ -420,6 +424,28 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   .pagehead h1 { font-size: 28px; letter-spacing: -.02em; }
   body.authed .wrap { padding-left: 32px; padding-right: 32px; }
   main { padding-top: 28px; }
+}
+.projbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.projbar .seg button { flex: none; min-width: 96px; }
+.views.dash .projbar { display: none; }
+.cw-head, .week, .cal-scroll, .cw-all, .cm-grid { touch-action: pan-y; }
+.cal-scroll { overflow-x: hidden; }
+@media (max-width: 1099px) {
+  /* Phones and small laptops: Calendar is just the calendar, filling the screen; the day's list lives on Today. */
+  .today.full > .dayhead, .today.full > .daycols { display: none; }
+  .today.full > .cal { margin-top: 0; height: var(--calh, auto); display: flex; flex-direction: column; }
+  .today.full .calbox { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .today.full .cal-scroll { flex: 1; min-height: 0; max-height: none; }
+  .today.full .cm-grid { flex: 1; min-height: 0; grid-template-rows: repeat(var(--rows, 6), minmax(0, 1fr)); }
+  .today.full .cm-cell { min-height: 0; overflow: hidden; }
+}
+@media (max-width: 999px) {
+  .dayhead .r input[type=date] { display: none; }
+  .dayhead .r:not(:has(.todaybtn)) { display: none; }
+  .addev { display: none; }
+  body.calview main { padding-top: 10px; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  .week .nav { display: none; }
+  .week { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -449,7 +475,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   <div class="views" id="views">
     <section class="panel p-stats" id="pStats" hidden><div class="stats" id="stats"></div></section>
     <section class="panel p-today" id="pToday" hidden><h3 class="ptitle">My day</h3><div class="today" id="today"></div></section>
-    <section class="panel p-board" id="pBoard" hidden><h3 class="ptitle">Kanban</h3><div class="sortbar" id="sortbar" hidden><span>Quick to-dos don't need to sit on the board.</span><button class="btn sm primary" type="button" data-act="sort">Sort into reminders and projects</button></div><div class="board" id="board"></div></section>
+    <section class="panel p-board" id="pBoard" hidden><h3 class="ptitle">Projects</h3><div class="projbar navhost" id="projbar"></div><div class="sortbar" id="sortbar" hidden><span>Quick to-dos don't need to sit on the board.</span><button class="btn sm primary" type="button" data-act="sort">Sort into reminders and projects</button></div><div class="board" id="board"></div></section>
     <section class="panel p-matrix" id="pMatrix" hidden><h3 class="ptitle">Urgent / Important</h3><div class="board matrix" id="matrix"></div></section>
   </div>
 </main>
@@ -480,7 +506,7 @@ const QUADS = [
   { id: "nn", name: "Drop or later", sub: "Not urgent, not important", u: false, i: false }
 ];
 let db = null, config = DEFAULT_CONFIG, cards = [], filter = "all", view = "today", readOnly = false, loaded = false;
-try { filter = localStorage.getItem("kb.filter") || "all"; view = localStorage.getItem("kb.view") || "today"; } catch (e) {}
+try { filter = localStorage.getItem("kb.filter") || "all"; view = localStorage.getItem("kb.view") || "day"; } catch (e) {}
 let selDay = (() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })();
 let pickOpen = window.innerWidth >= 1000;
 const $ = s => document.querySelector(s);
@@ -582,22 +608,24 @@ function dueInfo(due) {
 }
 
 const IC = {
+  day: `<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
   today: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
   kanban: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg>`,
   matrix: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>`,
   dash: `<svg class="ic" viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 7h6V4h-6z"/></svg>`,
   all: `<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg>`
 };
-const VIEWS = [{ id: "today", name: "Calendar" }, { id: "kanban", name: "Kanban" }, { id: "matrix", name: "Urgent / Important", short: "Priority" }, { id: "dash", name: "Dashboard" }];
+const VIEWS = [{ id: "day", name: "Today" }, { id: "today", name: "Calendar" }, { id: "kanban", name: "Projects" }, { id: "dash", name: "Overview" }];
+const navOn = id => view === id || (id === "kanban" && view === "matrix");
 function renderChips() {
   const counts = {}; cards.forEach(c => { if (c.col !== "done" && c.src !== "gcal") counts[c.board] = (counts[c.board] || 0) + 1; });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const areas = [{ id: "all", name: "All areas", n: total }, ...config.boards.map(b => ({ ...b, n: counts[b.id] || 0 }))];
-  $("#sideNav").innerHTML = VIEWS.map(v => `<button class="sitem" type="button" data-v="${v.id}" aria-pressed="${view === v.id}">${IC[v.id]}<span>${v.name}</span></button>`).join("");
-  $("#tabbar").innerHTML = VIEWS.map(v => `<button class="tab" type="button" data-v="${v.id}" aria-pressed="${view === v.id}">${IC[v.id]}<span>${v.short || v.name}</span></button>`).join("");
+  $("#sideNav").innerHTML = VIEWS.map(v => `<button class="sitem" type="button" data-v="${v.id}" aria-pressed="${navOn(v.id)}">${IC[v.id]}<span>${v.name}</span></button>`).join("");
+  $("#tabbar").innerHTML = VIEWS.map(v => `<button class="tab" type="button" data-v="${v.id}" aria-pressed="${navOn(v.id)}">${IC[v.id]}<span>${v.short || v.name}</span></button>`).join("");
   $("#sideAreas").innerHTML = areas.map(a => `<button class="sitem" type="button" data-f="${esc(a.id)}" aria-pressed="${filter === a.id}">${a.color ? `<span class="dot" style="background:${esc(a.color)}"></span>` : IC.all}<span>${esc(a.name)}</span><span class="n">${a.n}</span></button>`).join("");
   $("#chips").innerHTML = areas.map(a => `<button class="chip" type="button" data-f="${esc(a.id)}" aria-pressed="${filter === a.id}">${a.color ? `<span class="dot" style="background:${esc(a.color)}"></span>` : ""}${esc(a.id === "all" ? "All" : a.name)} <span class="n">${a.n}</span></button>`).join("");
-  $("#pageTitle").textContent = VIEWS.find(v => v.id === view)?.name || "";
+  $("#pageTitle").textContent = VIEWS.find(v => navOn(v.id))?.name || "";
   $("#pageSub").textContent = fmtDay(todayIso(), { weekday: "long", day: "numeric", month: "long" }) + (filter !== "all" ? " · " + boardOf(filter).name : "");
 }
 
@@ -617,15 +645,18 @@ function render() {
   const dash = view === "dash";
   $("#views").classList.toggle("dash", dash);
   if (loaded) {
-    $("#pStats").hidden = !dash; $("#pToday").hidden = !(dash || view === "today");
+    $("#pStats").hidden = !dash; $("#pToday").hidden = !(dash || view === "today" || view === "day");
     $("#pBoard").hidden = !(dash || view === "kanban" || view === "matrix"); $("#pMatrix").hidden = !dash;
   }
   const tasks = shown.filter(c => c.src !== "gcal"); // Google Calendar events show on the calendar only
   const projects = tasks.filter(c => !isReminder(c)); // reminders stay off the Kanban and priority boards
-  if (dash || view === "today") renderToday(shown);
+  document.body.classList.toggle("calview", view === "today");
+  $("#fab").setAttribute("aria-label", view === "today" ? "New event" : view === "kanban" || view === "matrix" ? "New project" : "New task");
+  if (dash || view === "today" || view === "day") renderToday(shown);
   if (dash) { renderStats(tasks); renderKanban($("#board"), projects, false); renderKanban($("#matrix"), projects, true); return; }
-  if (view === "today") return;
-  $("#sortbar").hidden = (view !== "kanban" && view !== "matrix") || readOnly || !projects.some(c => c.col !== "done");
+  if (view === "today" || view === "day") return;
+  $("#projbar").innerHTML = `<div class="seg"><button class="btn sm" type="button" data-v="kanban" aria-pressed="${view === "kanban"}">Board</button><button class="btn sm" type="button" data-v="matrix" aria-pressed="${view === "matrix"}">Priority</button></div><span class="hint">${view === "matrix" ? "Drag projects between the four boxes" : "Big and ongoing work. Quick to-dos live on Today."}</span>`;
+  $("#sortbar").hidden = (view !== "kanban" && view !== "matrix") || readOnly || !projects.some(c => c.col !== "done" && !c.kind && suggestKind(c) === "reminder");
   renderKanban($("#board"), projects, view === "matrix");
 }
 
@@ -635,11 +666,11 @@ function renderStats(shown) {
     week: open.filter(c => c.due && c.due >= t && c.due <= wk).length, doFirst: open.filter(c => c.urgent && c.important).length,
     done: shown.filter(c => c.col === "done" && (c.doneAt || "").slice(0, 10) === t).length };
   $("#stats").innerHTML = `
-    <button class="stat" type="button" data-go="today"><b>${n.today}</b><span>On today's list</span></button>
+    <button class="stat" type="button" data-go="day"><b>${n.today}</b><span>On today's list</span></button>
     <button class="stat ${n.overdue ? "warn" : ""}" type="button" data-go="kanban"><b>${n.overdue}</b><span>Overdue</span></button>
     <button class="stat" type="button" data-go="kanban"><b>${n.week}</b><span>Due in the next 7 days</span></button>
-    <button class="stat ${n.doFirst ? "warn" : ""}" type="button" data-go="matrix"><b>${n.doFirst}</b><span>Do first (urgent + important)</span></button>
-    <button class="stat good" type="button" data-go="today"><b>${n.done}</b><span>Done today</span></button>`;
+    <button class="stat ${n.doFirst ? "warn" : ""}" type="button" data-go="matrix"><b>${n.doFirst}</b><span>Do first</span></button>
+    <button class="stat good" type="button" data-go="day"><b>${n.done}</b><span>Done today</span></button>`;
 }
 $("#stats").addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (!g) return; view = g.dataset.go; try { localStorage.setItem("kb.view", view); } catch (er) {} render(); window.scrollTo(0, 0); });
 
@@ -733,17 +764,18 @@ function renderToday(shown) {
       <div class="r">${selDay !== t ? `<button class="btn sm todaybtn" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
     <div class="daycols"><div class="daymain">
-    ${dayEvents.length ? `<section class="sect agenda"><h3>Events</h3>${dayEvents.map(agItem).join("")}</section>` : ""}
-    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board.</div>`}</div></section>
+    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your list.</div>`}</div></section>
+    ${dayEvents.length && !full ? `<section class="sect agenda"><h3>Events</h3>${dayEvents.map(agItem).join("")}</section>` : ""}
     </div><div class="dayside">
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
-    ${full ? "" : agendaHTML(shown)}
+    ${view === "dash" ? agendaHTML(shown) : ""}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
     ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your list (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
     </div></div>
     ${full ? renderCal(shown) : ""}`;
   const sc = $("#today .cal-scroll");
-  if (sc) sc.scrollTop = prevScroll ?? 7 * HOUR;
+  fitCal();
+  if (sc) sc.scrollTop = prevScroll ?? (selDay === t ? Math.max(0, new Date().getHours() - 1.5) * HOUR : 7 * HOUR);
   const inp = $("#dayAddIn");
   if (inp) { inp.value = keepVal; if (keepFocus) inp.focus(); }
 }
@@ -833,7 +865,7 @@ function renderCal(shown) {
   const cells = [...Array(rows * 7)].map((_, i) => addDays(start, i));
   return `<section class="cal">${bar}<div class="calbox">
     <div class="cm-row">${cells.slice(0, 7).map(d => `<div class="cm-wd">${fmtDay(d, { weekday: "short" })}</div>`).join("")}</div>
-    <div class="cm-row">${cells.map(d => {
+    <div class="cm-row cm-grid" style="--rows:${rows}">${cells.map(d => {
       const it = dayItems(shown, d), list = [...it.due.map(c => evChip(c, true)), ...it.timed.map(c => evChip(c)), ...it.allDay.map(c => evChip(c))];
       return `<div class="cm-cell ${d.slice(0, 7) !== selDay.slice(0, 7) ? "other" : ""} ${d === t ? "is-today" : ""} ${d === selDay ? "sel" : ""}" data-mday="${d}"><span class="mnum">${+d.slice(8)}</span>${list.slice(0, 3).join("")}${list.length > 3 ? `<span class="more">+${list.length - 3} more</span>` : ""}</div>`;
     }).join("")}</div></div></section>`;
@@ -869,8 +901,7 @@ $("#today").addEventListener("click", async e => {
   if (el.dataset.pickyear) { pickYear = (pickYear ?? +selDay.slice(0, 4)) + +el.dataset.pickyear; return render(); }
   if (el.dataset.pickmonth) { const [y, m] = el.dataset.pickmonth.split("-").map(Number), last = new Date(y, m, 0).getDate();
     selDay = el.dataset.pickmonth + "-" + String(Math.min(+selDay.slice(8), last)).padStart(2, "0"); monthPick = false; return render(); }
-  if (el.dataset.newev) { if (readOnly) return; const h = Math.min(22, new Date().getHours() + 1), hh = v => String(v).padStart(2, "0") + ":00";
-    return openCard(null, newPreset({ day: selDay, time: hh(h), endTime: hh(h + 1) })); }
+  if (el.dataset.newev) return newEvent();
   if (el.dataset.calmode) { calMode = el.dataset.calmode; try { localStorage.setItem("kb.cal", calMode); } catch (er) {} return render(); }
   if (el.dataset.mday) { selDay = el.dataset.mday; render(); return window.scrollTo({ top: 0, behavior: "smooth" }); }
   if (el.dataset.slot) { if (readOnly) return; selDay = el.dataset.slot; render(); return openCard(null, newPreset({ day: selDay })); }
@@ -1005,7 +1036,8 @@ document.addEventListener("click", e => {
   filter = c.dataset.f; try { localStorage.setItem("kb.filter", filter); } catch (er) {}
   render();
 });
-$("#fab").onclick = () => $("#newTask").click();
+$("#fab").onclick = () => view === "today" ? newEvent() : $("#newTask").click();
+function newEvent() { if (readOnly) return; const h = Math.min(22, new Date().getHours() + 1), hh = v => String(v).padStart(2, "0") + ":00"; openCard(null, newPreset({ day: selDay, time: hh(h), endTime: hh(h + 1) })); }
 
 // Drag tasks in Calendar and the day list (mouse and touch): grab the ⋮⋮ handle on a row, or a task on the calendar
 // (press and hold on a phone). Drop on another row to reorder, or on a day, an all-day slot or an hour to reschedule.
@@ -1078,22 +1110,51 @@ document.addEventListener("pointerup", async e => {
 document.addEventListener("click", e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
 $("#today").addEventListener("dragstart", e => e.preventDefault());
 
-// Swipe the date strip to change week, or the day grid / month to change day / month (phones).
+// Phones: the calendar fills the screen between the top bar and the tabs, so only the hours scroll (no page-in-page scrolling).
+function fitCal() {
+  const cal = $("#today .cal");
+  if (!cal || view !== "today" || window.innerWidth >= 1100) { if (cal) cal.style.removeProperty("--calh"); return; }
+  const tab = $("#tabbar").offsetHeight || 0, top = cal.getBoundingClientRect().top + window.scrollY;
+  cal.style.setProperty("--calh", Math.max(320, window.innerHeight - top - tab - 18) + "px");
+}
+window.addEventListener("resize", () => fitCal());
+
+// Swipe on phones, following the finger: the date strip moves a week, the day timeline a day, month view a month.
 let swipe = null;
+const swipeArea = el => el.closest(".cw-head, .week, .cal-scroll, .cw-all, .cm-grid");
+const swipeMoving = area => area.matches(".cal-scroll, .cw-all") ? [...$("#today").querySelectorAll(".cw-all > :not(.gut), .cw-col")] : [area];
+const swipeKind = area => area.matches(".cm-grid") ? ".cm-grid" : area.matches(".week") ? ".week" : area.matches(".cw-head") ? ".cw-head" : ".cal-scroll";
 $("#today").addEventListener("touchstart", e => {
-  const area = e.target.closest(".cw-head, .week, .oneday .cal-scroll, .cm-row");
-  swipe = area && e.touches.length === 1 && !drag ? { area, x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+  const area = e.touches.length === 1 && !drag?.started ? swipeArea(e.target) : null;
+  swipe = area ? { area, x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now(), lock: null } : null;
 }, { passive: true });
-$("#today").addEventListener("touchend", e => {
-  const st = swipe; swipe = null; if (!st || drag) return;
-  const dx = e.changedTouches[0].clientX - st.x, dy = e.changedTouches[0].clientY - st.y;
-  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  const dir = dx < 0 ? 1 : -1;
-  selDay = st.area.matches(".cm-row") ? addMonths(selDay, dir) : st.area.matches(".oneday .cal-scroll") ? addDays(selDay, dir) : addDays(selDay, 7 * dir);
+$("#today").addEventListener("touchmove", e => {
+  const st = swipe; if (!st) return;
+  const dx = e.touches[0].clientX - st.x, dy = e.touches[0].clientY - st.y;
+  if (!st.lock) { if (Math.hypot(dx, dy) < 8) return; st.lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y"; if (st.lock === "y") { swipe = null; return; }
+    if (drag && !drag.started) { clearTimeout(drag.timer); drag = null; }
+    st.els = swipeMoving(st.area); st.els.forEach(el => el.style.transition = "none"); }
+  st.dx = dx; st.els.forEach(el => { el.style.transform = `translateX(${dx}px)`; el.style.opacity = 1 - Math.min(.5, Math.abs(dx) / 600); });
+}, { passive: true });
+const swipeEnd = e => {
+  const st = swipe; swipe = null; if (!st || st.lock !== "x") return;
+  const dx = st.dx || 0, fast = Math.abs(dx) > 25 && Math.abs(dx) / (Date.now() - st.t) > .5, w = st.area.offsetWidth || window.innerWidth;
+  const go = e.type === "touchend" && (Math.abs(dx) > w * .22 || fast);
   swallowClick = true; setTimeout(() => swallowClick = false, 350);
-  render();
-  $("#today .cw-head, #today .week, #today .cm-row")?.animate([{ transform: `translateX(${dir * 40}px)`, opacity: .4 }, { transform: "none", opacity: 1 }], { duration: 180, easing: "ease-out" });
-}, { passive: true });
+  const ease = "transform .16s ease-out, opacity .16s ease-out";
+  if (!go) { st.els.forEach(el => { el.style.transition = ease; el.style.transform = ""; el.style.opacity = ""; }); return; }
+  const dir = dx < 0 ? 1 : -1;
+  st.els.forEach(el => { el.style.transition = ease; el.style.transform = `translateX(${-dir * w}px)`; el.style.opacity = "0"; });
+  setTimeout(() => {
+    const kind = swipeKind(st.area), oneday = !!st.area.closest(".oneday");
+    selDay = kind === ".cm-grid" ? addMonths(selDay, dir) : kind === ".cal-scroll" && oneday ? addDays(selDay, dir) : addDays(selDay, 7 * dir);
+    render();
+    const now = $("#today").querySelector(kind);
+    (now ? swipeMoving(now) : []).forEach(el => el.animate([{ transform: `translateX(${dir * w * .6}px)`, opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "ease-out" }));
+  }, 150);
+};
+$("#today").addEventListener("touchend", swipeEnd, { passive: true });
+$("#today").addEventListener("touchcancel", swipeEnd, { passive: true });
 
 // Drag and drop between columns (desktop). On phones, tap a card and pick its column.
 let dragId = null;
