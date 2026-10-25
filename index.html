@@ -93,7 +93,10 @@ main { padding-block: 14px 32px; }
 .pill.overdue { color: var(--urgent); }
 .pill.soon { color: var(--soon); }
 .note-ic { font-family: var(--f-mono); }
-.today { display: grid; gap: 14px; max-width: 760px; }
+.today { display: grid; gap: 14px; }
+.daycols { display: grid; gap: 14px; align-items: start; }
+.dayside { display: grid; gap: 14px; }
+@media (min-width: 1000px) { .daycols { grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr); gap: 24px; } .week .num { font-size: 22px; } }
 .week { display: grid; grid-template-columns: auto repeat(7, minmax(0, 1fr)) auto; gap: 5px; align-items: stretch; }
 .week .nav { padding: 6px 10px; font-size: 18px; line-height: 1; }
 .week .d { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; display: grid; overflow: hidden; }
@@ -242,7 +245,7 @@ const QUADS = [
 let db = null, config = DEFAULT_CONFIG, cards = [], filter = "all", view = "today", readOnly = false, loaded = false;
 try { filter = localStorage.getItem("kb.filter") || "all"; view = localStorage.getItem("kb.view") || "today"; } catch (e) {}
 let selDay = (() => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); })();
-let pickOpen = false;
+let pickOpen = window.innerWidth >= 1000;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "board";
@@ -420,10 +423,13 @@ function renderToday(shown) {
       <div><h2>${title}, ${fmtDay(selDay, { day: "numeric", month: "long" })}</h2><div class="hint">${left} to do · ${planned.length - left} done</div></div>
       <div class="r">${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
-    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board below.</div>`}</div></section>
+    <div class="daycols"><div class="daymain">
+    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your board.</div>`}</div></section>
+    </div><div class="dayside">
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
-    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your board (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}`;
+    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your board (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
+    </div></div>`;
   const inp = $("#dayAddIn");
   if (inp) { inp.value = keepVal; if (keepFocus) inp.focus(); }
 }
