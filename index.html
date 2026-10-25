@@ -15,7 +15,8 @@
 <style>
 /* Layout: sticky quick-add bar on top, board filter chips, then columns side by side (scroll sideways on phones). */
 :root {
-  --bg: #f3f4f5; --surface: #ffffff; --col: #e8eaec; --line: #d3d6da;
+  --bg: #f4f5f6; --surface: #ffffff; --col: #eaecee; --line: #dcdfe3;
+  --side: #23272b; --side-ink: #e9ebed; --side-muted: #9aa1a8; --side-hover: #2f3439;
   --ink: #2b2f33; --muted: #6b7178; --accent: #1e8a4c; --accent-ink: #ffffff;
   --brand: #ffc20e; --brand-ink: #2b2f33;
   --urgent: #c2412d; --soon: #a86a12; --focus: #1e8a4c;
@@ -46,7 +47,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-header { border-top: 4px solid var(--brand); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
 .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 0; letter-spacing: -.01em; }
 .sub { color: var(--muted); font-size: 12px; }
@@ -195,6 +195,7 @@ details.sect[open] summary { margin-bottom: 6px; }
 .btn.sm { padding: 5px 10px; font-size: 12.5px; border-radius: 8px; }
 .pill.planned { color: var(--accent); }
 .ctop { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.ctop .t { flex: 1; min-width: 0; }
 .card-del, .icon-del { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--muted); cursor: pointer; border: 0; background: transparent; padding: 0; }
 .card-del:hover, .icon-del:hover { color: var(--urgent); background: color-mix(in srgb, var(--urgent) 12%, transparent); }
 .plflags { display: flex; gap: 18px; margin: 4px 0 8px; }
@@ -261,19 +262,97 @@ details.sect[open] summary { margin-bottom: 6px; }
 .list .item input[type=color] { width: 36px; height: 34px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 @media (max-width: 640px) { .board.matrix { grid-template-columns: 1fr; } }
 @media (max-width: 480px) { .board:not(.matrix) { grid-auto-columns: 82%; } .row2 { grid-template-columns: 1fr; } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* App shell: dark sidebar on laptop; top bar, bottom tabs and a + button on phone. */
+.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.side { display: none; }
+.mtop { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-top: 4px solid var(--brand); border-bottom: 1px solid var(--line); padding-block: 10px 8px; display: grid; gap: 8px; }
+.mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 19px; letter-spacing: -.01em; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; }
+.iconbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; width: 38px; height: 38px; display: grid; place-items: center; cursor: pointer; color: var(--ink); padding: 0; }
+.mtop .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+.mtop .chips::-webkit-scrollbar { display: none; }
+.mtop .chip { flex: none; }
+.pagehead { display: none; }
+.tabbar { display: none; }
+.fab { display: none; }
+body.authed .tabbar { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 8; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); }
+.tab { border: 0; background: transparent; color: var(--muted); display: grid; justify-items: center; gap: 3px; padding: 6px 2px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 12px; position: relative; }
+.tab[aria-pressed="true"] { color: var(--ink); }
+.tab[aria-pressed="true"]::before { content: ""; position: absolute; top: -6px; width: 28px; height: 3px; border-radius: 0 0 3px 3px; background: var(--brand); }
+.tab[aria-pressed="true"] .ic { stroke-width: 2.2; }
+body.authed .fab { display: grid; place-items: center; position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 9; width: 58px; height: 58px; border-radius: 18px; border: 0; background: var(--brand); color: var(--brand-ink); box-shadow: 0 6px 18px rgba(43,47,51,.28); cursor: pointer; }
+.fab .ic { width: 26px; height: 26px; stroke-width: 2.4; }
+body.authed main { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
+.menu { display: grid; gap: 4px; }
+.menu .mi { display: flex; align-items: center; gap: 12px; padding: 13px 12px; border: 0; background: transparent; border-radius: 10px; cursor: pointer; text-align: left; font-size: 15px; color: var(--ink); }
+.menu .mi:hover { background: var(--bg); }
+.menu .mi.danger { color: var(--urgent); }
+.btn:hover { border-color: color-mix(in srgb, var(--ink) 30%, var(--line)); }
+.btn.primary:hover { filter: brightness(.97); border-color: var(--brand); }
+.card { border-radius: 10px; transition: transform .12s, box-shadow .12s; }
+.card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(43,47,51,.12); }
+.column { border-radius: 14px; }
+@media (max-width: 999px) {
+  .board:not(.matrix) { scroll-snap-type: x mandatory; scroll-padding-inline: 16px; margin-inline: -16px; padding-inline: 16px; }
+  .board:not(.matrix) .column { scroll-snap-align: start; }
+}
+@media (max-width: 640px) {
+  .sheet-bg { place-items: end stretch; padding: 0; }
+  .sheet { width: 100%; border-radius: 20px 20px 0 0; max-height: 92%; padding: 22px 18px calc(22px + env(safe-area-inset-bottom, 0px)); animation: sheetup .22s ease-out; }
+  .sheet::before { content: ""; justify-self: center; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: -10px 0 2px; }
+}
+.sheet .actions { position: sticky; bottom: -18px; z-index: 1; background: var(--surface); border-top: 1px solid var(--line); padding: 12px 0; margin-top: 4px; }
+@media (max-width: 640px) { .sheet .actions { bottom: calc(-22px - env(safe-area-inset-bottom, 0px)); padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); } }
+@keyframes sheetup { from { transform: translateY(40px); opacity: .5; } }
+@media (min-width: 1000px) {
+  body.authed .mtop, body.authed .tabbar, body.authed .fab { display: none !important; }
+  body.authed main { padding-bottom: 40px; }
+  body.authed .toast { bottom: 24px; }
+  body.authed .side { display: flex; flex-direction: column; gap: 22px; position: fixed; inset: 0 auto 0 0; width: 248px; z-index: 6; background: var(--side); color: var(--side-ink); border-top: 4px solid var(--brand); padding: 20px 14px 16px; overflow-y: auto; }
+  body.authed .shell { margin-left: 248px; }
+  .side .brand { padding: 0 8px; color: #fff; }
+  .side .btn.primary { padding: 12px 16px; font-size: 15px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(255,194,14,.25); }
+  .snav { display: grid; gap: 2px; }
+  .slabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--side-muted); padding: 0 10px 6px; }
+  .sitem { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--side-ink); cursor: pointer; text-align: left; font-size: 14px; font-weight: 500; }
+  .sitem:hover { background: var(--side-hover); }
+  .sitem[aria-pressed="true"] { background: var(--brand); color: #2b2f33; font-weight: 600; }
+  .sitem .n { margin-left: auto; font-family: var(--f-mono); font-size: 11.5px; opacity: .7; }
+  .sitem .dot { width: 10px; height: 10px; margin: 0 5px; }
+  .sfoot { margin-top: auto; display: grid; gap: 2px; border-top: 1px solid var(--side-hover); padding-top: 12px; }
+  .acct { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 0; font-size: 12px; color: var(--side-muted); min-width: 0; }
+  .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acct button { border: 1px solid var(--side-hover); background: transparent; color: var(--side-ink); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; flex: none; }
+  .pagehead { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+  .pagehead h1 { font-size: 28px; letter-spacing: -.02em; }
+  body.authed .wrap { padding-left: 32px; padding-right: 32px; }
+  main { padding-top: 28px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
-<header class="wrap">
-  <div class="top">
-    <h1>Orbit Ai</h1>
-    <span class="r"><span class="sub" id="sub"></span><button class="btn sm" type="button" id="signOut" hidden>Sign out</button></span>
+<aside class="side navhost" aria-label="Main">
+  <div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div>
+  <button class="btn primary" type="button" id="newTask" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New task</button>
+  <nav class="snav" id="sideNav"></nav>
+  <div><div class="slabel">Areas</div><div class="snav" id="sideAreas"></div></div>
+  <div class="sfoot">
+    <button class="sitem" type="button" id="pasteList" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>Paste a list</button>
+    <button class="sitem" type="button" data-act="google"><svg class="ic" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>Google sync</button>
+    <button class="sitem" type="button" data-act="boards"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg>Edit boards</button>
+    <div class="acct"><span id="sub"></span><button type="button" id="signOut" hidden>Sign out</button></div>
   </div>
-  <div class="add"><button class="btn primary" type="button" id="newTask" disabled>+ New task</button><button class="btn" type="button" id="pasteList" hidden>Paste a list</button></div>
+</aside>
+<div class="shell">
+<header class="mtop wrap navhost">
+  <div class="mrow"><div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div><button class="iconbtn" type="button" data-act="menu" id="menuBtn" aria-label="Menu" hidden><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg></button></div>
   <div class="chips" id="chips"></div>
 </header>
 
 <main class="wrap">
+  <div class="pagehead"><h1 id="pageTitle"></h1><span class="hint" id="pageSub"></span></div>
   <div id="state" class="state">Loading your board…</div>
   <div class="views" id="views">
     <section class="panel p-stats" id="pStats" hidden><div class="stats" id="stats"></div></section>
@@ -282,6 +361,9 @@ details.sect[open] summary { margin-bottom: 6px; }
     <section class="panel p-matrix" id="pMatrix" hidden><h3 class="ptitle">Urgent / Important</h3><div class="board matrix" id="matrix"></div></section>
   </div>
 </main>
+</div>
+<nav class="tabbar navhost" id="tabbar" aria-label="Views"></nav>
+<button class="fab" type="button" id="fab" aria-label="New task"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 <div id="toast" class="toast" hidden></div>
 <div id="sheetBg" class="sheet-bg" hidden></div>
 
@@ -402,14 +484,24 @@ function dueInfo(due) {
   return { label, cls: diff < 0 ? "overdue" : diff <= 1 ? "soon" : "" };
 }
 
+const IC = {
+  today: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>`,
+  kanban: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/></svg>`,
+  matrix: `<svg class="ic" viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>`,
+  dash: `<svg class="ic" viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 7h6V4h-6z"/></svg>`,
+  all: `<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16M4 12h16"/></svg>`
+};
+const VIEWS = [{ id: "today", name: "Calendar" }, { id: "kanban", name: "Kanban" }, { id: "matrix", name: "Urgent / Important", short: "Priority" }, { id: "dash", name: "Dashboard" }];
 function renderChips() {
   const counts = {}; cards.forEach(c => { if (c.col !== "done") counts[c.board] = (counts[c.board] || 0) + 1; });
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
-  let h = `<span class="seg view"><button class="chip" data-v="dash" aria-pressed="${view === "dash"}">Dashboard</button><button class="chip" data-v="today" aria-pressed="${view === "today"}">Calendar</button><button class="chip" data-v="kanban" aria-pressed="${view === "kanban"}">Kanban</button><button class="chip" data-v="matrix" aria-pressed="${view === "matrix"}">Urgent / Important</button></span><span class="sep"></span>`;
-  h += `<button class="chip" data-f="all" aria-pressed="${filter === "all"}">All <span class="n">${total}</span></button>`;
-  for (const b of config.boards) h += `<button class="chip" data-f="${esc(b.id)}" aria-pressed="${filter === b.id}"><span class="dot" style="background:${esc(b.color)}"></span>${esc(b.name)} <span class="n">${counts[b.id] || 0}</span></button>`;
-  if (!readOnly) h += `<button class="chip ghost" id="editBoards">Edit boards</button><button class="chip ghost" id="googleBtn">Google</button>`;
-  $("#chips").innerHTML = h;
+  const areas = [{ id: "all", name: "All areas", n: total }, ...config.boards.map(b => ({ ...b, n: counts[b.id] || 0 }))];
+  $("#sideNav").innerHTML = VIEWS.map(v => `<button class="sitem" type="button" data-v="${v.id}" aria-pressed="${view === v.id}">${IC[v.id]}<span>${v.name}</span></button>`).join("");
+  $("#tabbar").innerHTML = VIEWS.map(v => `<button class="tab" type="button" data-v="${v.id}" aria-pressed="${view === v.id}">${IC[v.id]}<span>${v.short || v.name}</span></button>`).join("");
+  $("#sideAreas").innerHTML = areas.map(a => `<button class="sitem" type="button" data-f="${esc(a.id)}" aria-pressed="${filter === a.id}">${a.color ? `<span class="dot" style="background:${esc(a.color)}"></span>` : IC.all}<span>${esc(a.name)}</span><span class="n">${a.n}</span></button>`).join("");
+  $("#chips").innerHTML = areas.map(a => `<button class="chip" type="button" data-f="${esc(a.id)}" aria-pressed="${filter === a.id}">${a.color ? `<span class="dot" style="background:${esc(a.color)}"></span>` : ""}${esc(a.id === "all" ? "All" : a.name)} <span class="n">${a.n}</span></button>`).join("");
+  $("#pageTitle").textContent = VIEWS.find(v => v.id === view)?.name || "";
+  $("#pageSub").textContent = fmtDay(todayIso(), { weekday: "long", day: "numeric", month: "long" }) + (filter !== "all" ? " · " + boardOf(filter).name : "");
 }
 
 function render() {
@@ -684,15 +776,34 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") closeSheet();
 });
 
-$("#chips").addEventListener("click", e => {
-  if (e.target.closest("#editBoards")) return openBoardsEditor();
-  if (e.target.closest("#googleBtn")) return openGoogle();
-  const v = e.target.closest("[data-v]");
-  if (v) { view = v.dataset.v; try { localStorage.setItem("kb.view", view); } catch (er) {} return render(); }
-  const c = e.target.closest("[data-f]"); if (!c) return;
+// Navigation and menu actions, shared by the sidebar, phone top bar, tab bar and the phone menu sheet.
+let userEmail = "";
+function openMenu() {
+  openSheet(`<h3>${esc(userEmail || "Menu")}</h3><div class="menu">
+    <button class="mi" type="button" data-act="paste">Paste a list</button>
+    <button class="mi" type="button" data-act="google">Google Calendar and Tasks</button>
+    <button class="mi" type="button" data-act="boards">Edit boards</button>
+    <button class="mi danger" type="button" data-act="signout">Sign out</button></div>`);
+}
+document.addEventListener("click", e => {
+  const a = e.target.closest("[data-act]");
+  if (a) {
+    const act = a.dataset.act;
+    if (act !== "menu") closeSheet();
+    if (act === "menu") return openMenu();
+    if (act === "google") return openGoogle();
+    if (act === "boards") return openBoardsEditor();
+    if (act === "paste") return openPasteList();
+    if (act === "signout") return $("#signOut").click();
+    return;
+  }
+  const v = e.target.closest(".navhost [data-v]");
+  if (v) { view = v.dataset.v; try { localStorage.setItem("kb.view", view); } catch (er) {} render(); return window.scrollTo(0, 0); }
+  const c = e.target.closest(".navhost [data-f]"); if (!c) return;
   filter = c.dataset.f; try { localStorage.setItem("kb.filter", filter); } catch (er) {}
   render();
 });
+$("#fab").onclick = () => $("#newTask").click();
 
 // Drag and drop between columns (desktop). On phones, tap a card and pick its column.
 let dragId = null;
@@ -927,7 +1038,8 @@ function makeDb(userId) {
 function start(user) {
   readOnly = false;
   db = makeDb(user.id);
-  $("#sub").textContent = user.email || "";
+  $("#sub").textContent = userEmail = user.email || "";
+  document.body.classList.add("authed"); $("#menuBtn").hidden = false;
   $("#signOut").hidden = false; $("#pasteList").hidden = false; $("#newTask").hidden = false; $("#newTask").disabled = false;
   $("#state").textContent = "Loading your board…"; $("#state").hidden = false;
   db.doc("config/main").onSnapshot(s => { if (s.exists) { const d = s.data(); if (d.boards?.length && d.columns?.length) config = JSON.parse(JSON.stringify(d)); } show(); });
@@ -973,6 +1085,7 @@ function openPasteList() {
 $("#pasteList").onclick = openPasteList;
 
 function showLogin(msg) {
+  document.body.classList.remove("authed"); $("#menuBtn").hidden = true;
   $("#newTask").hidden = true; $("#pasteList").hidden = true; $("#signOut").hidden = true; ["#pStats", "#pToday", "#pBoard", "#pMatrix"].forEach(id => $(id).hidden = true);
   $("#state").hidden = false;
   $("#state").innerHTML = `<form class="login" id="login" autocomplete="on">
