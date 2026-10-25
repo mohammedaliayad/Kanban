@@ -4,6 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffc20e">
+<meta name="build" content="1792912713">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -130,6 +131,11 @@ main { padding-block: 14px 32px; }
 .calnav .nav { padding: 6px 12px; font-size: 18px; line-height: 1; }
 .calbox { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
 .cw-row { display: grid; grid-template-columns: 40px repeat(7, minmax(0, 1fr)); }
+.oneday .cw-head { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.oneday .cw-head > div:first-child { display: none; }
+.oneday .cw-all, .oneday .cw-grid { grid-template-columns: 48px minmax(0, 1fr) !important; }
+.oneday .ev { font-size: 13px; padding: 4px 8px; }
+.oneday .cw-col .ev small { font-size: 11.5px; }
 .cw-head { border-bottom: 1px solid var(--line); }
 .cw-day { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 6px 0 4px; display: grid; justify-items: center; gap: 2px; font: inherit; min-width: 0; }
 .cw-day .wd { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -634,8 +640,8 @@ function renderToday(shown) {
 }
 
 // Google Calendar style week (Monday first) and month views, under the day's task list.
-let calMode = "week";
-try { calMode = localStorage.getItem("kb.cal") || "week"; } catch (e) {}
+let calMode = window.innerWidth < 700 ? "day" : "week";
+try { calMode = localStorage.getItem("kb.cal") || calMode; } catch (e) {}
 const HOUR = 44;
 const mins = t => { const [h, m] = String(t || "0:0").split(":").map(Number); return h * 60 + (m || 0); };
 const weekStart = s => addDays(s, -((new Date(s + "T00:00:00").getDay() + 6) % 7));
@@ -670,18 +676,19 @@ function layoutDay(list) {
   return ev;
 }
 function renderCal(shown) {
-  const t = todayIso(), week = calMode === "week";
+  const t = todayIso(), week = calMode !== "month", one = calMode === "day";
   const bar = `<div class="calbar"><div class="calnav">
       <button class="btn nav" type="button" data-calnav="-1" aria-label="${week ? "Previous day" : "Previous month"}">‹</button>
       <button class="btn nav" type="button" data-calnav="1" aria-label="${week ? "Next day" : "Next month"}">›</button>
       ${selDay !== t ? `<button class="btn sm" type="button" data-goto="${t}">Today</button>` : ""}
       <h2>${fmtDay(selDay, { month: "long", year: "numeric" })}</h2></div>
-    <div class="seg"><button class="btn sm" type="button" data-calmode="week" aria-pressed="${week}">Week</button><button class="btn sm" type="button" data-calmode="month" aria-pressed="${!week}">Month</button></div></div>`;
+    <div class="seg"><button class="btn sm" type="button" data-calmode="day" aria-pressed="${one}">Day</button><button class="btn sm" type="button" data-calmode="week" aria-pressed="${week && !one}">Week</button><button class="btn sm" type="button" data-calmode="month" aria-pressed="${!week}">Month</button></div></div>`;
   if (week) {
-    const days = [...Array(7)].map((_, i) => addDays(weekStart(selDay), i)), items = days.map(d => dayItems(shown, d));
+    const strip = [...Array(7)].map((_, i) => addDays(weekStart(selDay), i));
+    const days = one ? [selDay] : strip, items = days.map(d => dayItems(shown, d));
     const now = new Date(), nowM = now.getHours() * 60 + now.getMinutes();
-    return `<section class="cal">${bar}<div class="calbox">
-      <div class="cw-row cw-head"><div></div>${days.map(d => `<button class="cw-day ${d === t ? "is-today" : ""} ${d === selDay ? "sel" : ""}" type="button" data-day="${d}" aria-pressed="${d === selDay}"><span class="wd">${fmtDay(d, { weekday: "short" })}</span><span class="num">${+d.slice(8)}</span></button>`).join("")}</div>
+    return `<section class="cal ${one ? "oneday" : ""}">${bar}<div class="calbox">
+      <div class="cw-row cw-head"><div></div>${strip.map(d => `<button class="cw-day ${d === t ? "is-today" : ""} ${d === selDay ? "sel" : ""}" type="button" data-day="${d}" aria-pressed="${d === selDay}"><span class="wd">${fmtDay(d, { weekday: "short" })}</span><span class="num">${+d.slice(8)}</span></button>`).join("")}</div>
       <div class="cw-row cw-all"><div class="gut">All day</div>${days.map((d, i) => `<div class="cw-adcell" data-slot="${d}">${items[i].due.map(c => evChip(c, true)).join("")}${items[i].allDay.map(c => evChip(c)).join("")}</div>`).join("")}</div>
       <div class="cal-scroll"><div class="cw-row cw-grid" style="height:${24 * HOUR}px">
         <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${String(h + 1).padStart(2, "0")}:00</span>`).join("")}</div>
@@ -1030,6 +1037,22 @@ async function pullGoogle(force) {
   catch (e) { return -1; }
 }
 setInterval(() => document.visibilityState === "visible" && pullGoogle(), 5 * 60000);
+// Home screen apps don't reload on their own: when Orbit comes back to the front, load a newer version if one is out.
+async function checkUpdate() {
+  try {
+    const html = await (await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" })).text();
+    const live = html.match(/name="build" content="([^"]+)"/)?.[1], mine = document.querySelector('meta[name="build"]')?.content;
+    if (live && mine && live !== mine && $("#sheetBg").hidden) location.reload();
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && checkUpdate());
+// Pull down from the top of the page to refresh, like a normal app.
+{
+  let y0 = null, pulled = 0;
+  document.addEventListener("touchstart", e => { y0 = window.scrollY <= 0 && $("#sheetBg").hidden ? e.touches[0].clientY : null; pulled = 0; }, { passive: true });
+  document.addEventListener("touchmove", e => { if (y0 === null) return; pulled = e.touches[0].clientY - y0; document.body.style.transform = pulled > 0 ? `translateY(${Math.min(pulled / 3, 50)}px)` : ""; }, { passive: true });
+  document.addEventListener("touchend", () => { document.body.style.transform = ""; if (y0 !== null && pulled > 140) { toast("Refreshing…"); pullGoogle(true); setTimeout(() => location.reload(), 300); } y0 = null; });
+}
 document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && pullGoogle());
 
 function show() { if (!readOnly) $("#state").hidden = true; loaded = true; render(); }
