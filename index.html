@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792918889">
+<meta name="build" content="1792991993">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1055,7 +1055,7 @@ $("#today").addEventListener("pointerdown", e => {
   const chip = !grip && !e.target.closest("[data-tick]") && e.target.closest(".ev[data-open]:not(.ghost):not(.due)");
   if (!grip && !chip) return;
   const id = grip ? grip.dataset.grip : chip.dataset.open, c = cards.find(x => x.id === id);
-  if (!c || c.src === "gcal") return; // Google events move in Google, so invites go out from there
+  if (!c || (grip && c.src === "gcal")) return; // Google events move on the calendar; the move is written back to Google
   drag = { id, x0: e.clientX, y0: e.clientY, src: grip ? grip.closest(".trow") : chip, list: grip ? grip.closest(".tlist") : null, touch: e.pointerType === "touch", started: false };
   if (grip) { e.preventDefault(); grip.setPointerCapture?.(e.pointerId); dragStart(drag); }
   else if (drag.touch) drag.timer = setTimeout(() => drag && !drag.started && dragStart(drag), 350);
@@ -1103,8 +1103,8 @@ document.addEventListener("pointerup", async e => {
     const hm = v => String(Math.floor(v / 60)).padStart(2, "0") + ":" + String(v % 60).padStart(2, "0");
     c.time = hm(m); c.endTime = hm(Math.min(24 * 60 - 1, m + len));
   }
-  if (c.day !== day) { c.day = day; delete c.dayRank; }
-  render(); toast(`Moved to ${fmtDay(day, { weekday: "short", day: "numeric", month: "short" })}${c.time ? ", " + tm(c.time) : ""}`);
+  if (c.day !== day) { if (c.endDay && c.day) c.endDay = addDays(c.endDay, Math.round((new Date(day + "T00:00:00") - new Date(c.day + "T00:00:00")) / 864e5)); c.day = day; delete c.dayRank; }
+  render(); toast(`Moved to ${fmtDay(day, { weekday: "short", day: "numeric", month: "short" })}${c.time ? ", " + tm(c.time) : ""}${c.src === "gcal" ? (c.guests?.length ? ". Guests will get the new time" : ". Updating Google") : ""}`);
   await saveCard(c);
 });
 document.addEventListener("click", e => { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
