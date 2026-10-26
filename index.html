@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792991993">
+<meta name="build" content="1792995843">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -201,6 +201,9 @@ main { padding-block: 14px 32px; }
 .ev.due::before { display: none; }
 .ev small { display: block; opacity: .75; font-size: 10px; }
 .ev.done { opacity: .5; text-decoration: line-through; }
+.meetbtn { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 10.5px; font-weight: 600; line-height: 17px; cursor: pointer; vertical-align: 1px; white-space: nowrap; }
+.meetbtn:hover { background: var(--accent); }
+.meetlink { text-align: center; text-decoration: none; }
 .ev.ghost { background: color-mix(in srgb, var(--brand) 14%, var(--surface)); border-left-style: dashed; }
 .ev.ghost::after { content: " ↻"; opacity: .6; }
 .evtick { display: inline-block; width: 12px; height: 12px; border: 1.5px solid var(--ink); border-radius: 50%; margin-right: 4px; vertical-align: -2px; cursor: pointer; flex: none; background: var(--surface); }
@@ -724,7 +727,8 @@ function rowHTML(c, action, grip = c.col !== "done" && c.src !== "gcal") {
 function planOn(c, day) { c.day = day; c.dayOrder = Math.max(0, ...cards.filter(x => x.day === day && x !== c).map(x => x.dayOrder ?? 0)) + 1; }
 
 // My day: a Google Tasks style list for one date. Cards join a day through their "day" field.
-const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? tm(c.time) + (c.endTime ? "–" + tm(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span></button>`;
+const meetHTML = c => /^https:\/\//.test(c.meet || "") ? `<span class="meetbtn" role="link" tabindex="0" data-meet="${esc(c.meet)}" title="Join video call">Join</span>` : "";
+const agItem = c => `<button class="ag-it ${c.src === "gcal" ? "" : "task"}" type="button" data-open="${esc(c.id)}" style="--a:${esc(boardOf(c.board).color)}"><span class="ag-t">${c.time ? tm(c.time) + (c.endTime ? "–" + tm(c.endTime) : "") : "All day"}</span><span class="ag-n">${esc(c.title)}</span>${meetHTML(c)}</button>`;
 // Dashboard: the next 7 days of events and scheduled tasks, like Google Calendar's schedule view.
 function agendaHTML(shown) {
   const t = todayIso(), days = [...Array(7)].map((_, i) => addDays(t, i));
@@ -856,7 +860,7 @@ function renderCal(shown) {
       <div class="cw-row cw-all"><div class="gut">All day</div>${days.map((d, i) => `<div class="cw-adcell" data-slot="${d}">${items[i].due.map(c => evChip(c, true)).join("")}${items[i].allDay.map(c => evChip(c)).join("")}</div>`).join("")}</div>
       <div class="cal-scroll"><div class="cw-row cw-grid" style="height:${24 * HOUR}px">
         <div class="cw-hours">${[...Array(23)].map((_, h) => `<span style="top:${(h + 1) * HOUR}px">${tm(h + 1 + ":00", true)}</span>`).join("")}</div>
-        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""} ${x.e - x.s < 45 ? "short" : ""} ${x.c.ghost ? "ghost" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(22, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n + 1});width:calc(100% - ${x.lane} * 100% / ${x.n + 1} - 2px);z-index:${1 + x.lane}">${tickHTML(x.c)}${esc(x.c.title)}<small>${tm(x.c.time)}${x.c.endTime ? "–" + tm(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
+        ${days.map((d, i) => `<div class="cw-col ${d === t ? "is-today" : ""}" data-slotday="${d}">${layoutDay(items[i].timed).map(x => `<button class="ev ${x.c.col === "done" ? "done" : ""} ${x.e - x.s < 45 ? "short" : ""} ${x.c.ghost ? "ghost" : ""}" type="button" data-open="${esc(x.c.id)}" title="${esc(x.c.title)}" style="--a:${esc(boardOf(x.c.board).color)};top:${x.s / 60 * HOUR}px;height:${Math.max(22, (x.e - x.s) / 60 * HOUR - 2)}px;left:calc(${x.lane} * 100% / ${x.n + 1});width:calc(100% - ${x.lane} * 100% / ${x.n + 1} - 2px);z-index:${1 + x.lane}">${tickHTML(x.c)}${esc(x.c.title)}${meetHTML(x.c)}<small>${tm(x.c.time)}${x.c.endTime ? "–" + tm(x.c.endTime) : ""}</small></button>`).join("")}${d === t ? `<div class="nowline" style="top:${nowM / 60 * HOUR}px"></div>` : ""}</div>`).join("")}
       </div></div></div></section>`;
   }
   const first = selDay.slice(0, 8) + "01", start = weekStart(first);
@@ -893,6 +897,8 @@ async function setDone(c, done) {
 }
 $("#today").addEventListener("click", async e => {
   // Tick a task straight from the calendar.
+  const meet = e.target.closest("[data-meet]");
+  if (meet) { e.preventDefault(); e.stopPropagation(); window.open(meet.dataset.meet, "_blank", "noopener"); return; }
   const tick = e.target.closest("[data-tick]");
   if (tick) { e.preventDefault(); const c = cards.find(x => x.id === tick.dataset.tick); if (c && !readOnly) { toast(c.col === "done" ? "Marked not done" : "Done ✓"); await setDone(c, c.col !== "done"); } return; }
   const el = e.target.closest("[data-del],[data-day],[data-addday],[data-week],[data-goto],[data-open],[data-plan],[data-unplan],[data-shift],[data-planall],[data-calnav],[data-calmode],[data-monthpick],[data-pickyear],[data-pickmonth],[data-newev],[data-mday],[data-slot],[data-slotday]"); if (!el) return;
@@ -1211,9 +1217,10 @@ function openCard(id, preset) {
   const dis = readOnly ? "disabled" : "";
   const seg = (gid, list, cur) => `<div class="seg" id="${gid}">${list.map(o => `<button type="button" class="btn" data-v="${esc(o.id)}" aria-pressed="${cur === o.id}" ${dis}>${o.color ? `<span class="dot" style="background:${esc(o.color)};display:inline-block;margin-right:6px"></span>` : ""}${esc(o.name)}</button>`).join("")}</div>`;
   openSheet(`
-    <h3>${isNew ? (c.time ? "New event" : "New task") : "Edit task"}</h3>
-    <div class="field"><label for="f-title">What needs doing?</label><input id="f-title" type="text" value="${esc(c.title)}" placeholder="e.g. Send quote to client" ${dis}></div>
-    <div class="field"><label>What kind?</label>${seg("f-kind", KINDS, isReminder(c) ? "reminder" : "project")}<span class="hint" id="f-kind-hint"></span></div>
+    <h3>${isNew ? (c.time ? "New event" : "New task") : c.src === "gcal" ? "Edit event" : "Edit task"}</h3>
+    ${/^https:\/\//.test(c.meet || "") ? `<a class="btn primary meetlink" href="${esc(c.meet)}" target="_blank" rel="noopener">Join Google Meet</a>` : ""}
+    <div class="field"><label for="f-title">${c.src === "gcal" ? "Event" : "What needs doing?"}</label><input id="f-title" type="text" value="${esc(c.title)}" placeholder="e.g. Send quote to client" ${dis}></div>
+    <div class="field" ${c.src === "gcal" ? "hidden" : ""}><label>What kind?</label>${seg("f-kind", KINDS, isReminder(c) ? "reminder" : "project")}<span class="hint" id="f-kind-hint"></span></div>
     <div class="field"><label>Where does it go?</label>${seg("f-board", config.boards, c.board)}</div>
     <div class="field" id="f-colwrap"><label>Column</label>${seg("f-col", config.columns, c.col)}</div>
     <div class="row2">
@@ -1239,7 +1246,7 @@ function openCard(id, preset) {
       <div class="r"><button class="btn" id="f-cancel" type="button">${isNew ? "Cancel" : "Close"}</button>${readOnly ? "" : `<button class="btn primary" id="f-save" type="button">${isNew ? "Add task" : "Save"}</button>`}</div>
     </div>`);
   let col = c.col, board = c.board, repeat = c.repeat || "", kind = isReminder(c) ? "reminder" : "project";
-  const showKind = () => { $("#f-colwrap").hidden = kind === "reminder"; $("#f-kind-hint").textContent = kind === "reminder" ? "A quick to-do. Shows on your calendar and day list, not on the Kanban board." : "Big or ongoing work. Lives on the Kanban board."; };
+  const showKind = () => { $("#f-colwrap").hidden = kind === "reminder" || c.src === "gcal"; $("#f-kind-hint").textContent = kind === "reminder" ? "A quick to-do. Shows on your calendar and day list, not on the Kanban board." : "Big or ongoing work. Lives on the Kanban board."; };
   let items = (c.checklist || []).map(i => ({ ...i }));
   // On an existing task, checklist changes save straight away so ticking items needs no Save tap.
   const drawCl = () => {

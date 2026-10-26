@@ -155,6 +155,8 @@ function fromEvent(e: any) {
   return { day, time: null, endTime: null, endDay: last && last > day ? last : null };
 }
 const guestsOf = (e: any) => (e.attendees || []).filter((a: any) => !a.self && !a.resource).map((a: any) => String(a.email).toLowerCase()).sort();
+// Google Meet (or other video call) link on the event, if any.
+const meetOf = (e: any) => { const u = e.hangoutLink || (e.conferenceData?.entryPoints || []).find((p: any) => p.entryPointType === "video")?.uri || ""; return /^https:\/\//.test(u) ? u : null; };
 const strip = (t: string) => String(t || "").replace(/^Due: /, "").replace(/^⚡ /, "");
 
 async function pull(userId: string) {
@@ -209,8 +211,8 @@ async function pull(userId: string) {
       if (gone || e.eventType === "workingLocation") { if (doc) await drop(id); continue; }
       if (!e.start) continue;
       const f = fromEvent(e);
-      const next: Doc = { ...(doc || { col: "next", order: 0, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gcal", board, title: e.summary || "(No title)", note: e.description || "", guests: guestsOf(e), ...f } as Doc;
-      if (!doc || JSON.stringify(wanted(next).event?.hash) !== JSON.stringify(wanted(doc).event?.hash)) await put(id, next, "event", e.id);
+      const next: Doc = { ...(doc || { col: "next", order: 0, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gcal", board, title: e.summary || "(No title)", note: e.description || "", guests: guestsOf(e), meet: meetOf(e), ...f } as Doc;
+      if (!doc || (doc.meet || null) !== next.meet || JSON.stringify(wanted(next).event?.hash) !== JSON.stringify(wanted(doc).event?.hash)) await put(id, next, "event", e.id);
     }
 
     // Every list (Google Calendar shows them all): every open task however old, plus anything completed or deleted lately.
