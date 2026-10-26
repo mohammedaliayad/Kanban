@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792998130">
+<meta name="build" content="1793053991">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1384,14 +1384,16 @@ async function openGoogle() {
 
 // Brings Google Calendar events and Google Tasks into Orbit: on open, every 5 minutes, and when the app comes back to the front.
 let lastPull = 0;
-const SYNC_VERSION = 3; // the google-sync version this app expects (3 = Meet links)
+const SYNC_VERSION = 4; // the google-sync version this app expects (3 = Meet links, 4 = reads past 1,000 cards)
 async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();
-  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; pullReport = data?.report || null; if (data?.error) pullErr = data.error;
-    if (!data?.error && (data?.version || 0) < SYNC_VERSION && !pullGoogle.warned) { pullGoogle.warned = true; toast("Google sync is out of date: redeploy google-sync in Supabase to get Meet links", { label: "OK", fn: () => {} }); }
+  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; pullReport = data?.report || null; if (data?.error) { pullErr = data.error; if (!pullGoogle.failed) { pullGoogle.failed = true; toast("Couldn't sync with Google: " + pullErr, { label: "Details", fn: openGoogle }); } }
+    if (!data?.error && (data?.version || 0) < SYNC_VERSION && !pullGoogle.warned) { pullGoogle.warned = true; toast("Google sync is out of date: redeploy google-sync in Supabase", { label: "OK", fn: () => {} }); }
     return data?.changed ?? 0; }
-  catch (e) { pullErr = e.message || ""; try { pullErr = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : pullErr); } catch (er) {} return -1; }
+  catch (e) { pullErr = e.message || ""; try { pullErr = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : pullErr); } catch (er) {}
+    if (!pullGoogle.failed) { pullGoogle.failed = true; toast("Couldn't sync with Google: " + (pullErr || "unknown error"), { label: "Details", fn: openGoogle }); }
+    return -1; }
 }
 let pullErr = "", pullReport = null;
 setInterval(() => document.visibilityState === "visible" && pullGoogle(), 5 * 60000);
@@ -1423,7 +1425,16 @@ function makeDb(userId) {
   const emitCards = () => { const docs = [...cache].map(([id, d]) => ({ id, data: () => d })); subs.cards.forEach(fn => fn({ docs })); };
   const emitConfig = () => subs.config.forEach(fn => fn({ exists: !!configDoc, data: () => configDoc }));
   const fail = error => { throw { code: "unavailable", message: error.message }; };
-  async function loadCards() { const { data, error } = await SB.from("cards").select("id, doc"); if (error) return; cache = new Map(data.map(r => [r.id, r.doc])); emitCards(); }
+  // Supabase returns at most 1,000 rows per request; Google events alone can pass that, so read every page.
+  async function loadCards() {
+    const all = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await SB.from("cards").select("id, doc").order("id").range(from, from + 999);
+      if (error) return;
+      all.push(...data); if (data.length < 1000) break;
+    }
+    cache = new Map(all.map(r => [r.id, r.doc])); emitCards();
+  }
   async function loadConfig() { const { data } = await SB.from("config").select("doc").eq("id", "main").maybeSingle(); configDoc = data?.doc || null; emitConfig(); }
   SB.channel("kanban-" + userId)
     .on("postgres_changes", { event: "*", schema: "public", table: "cards" }, p => { if (p.eventType === "DELETE") cache.delete(p.old.id); else cache.set(p.new.id, p.new.doc); emitCards(); })

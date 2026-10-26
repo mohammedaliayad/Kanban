@@ -159,10 +159,21 @@ const guestsOf = (e: any) => (e.attendees || []).filter((a: any) => !a.self && !
 const meetOf = (e: any) => { const u = e.hangoutLink || (e.conferenceData?.entryPoints || []).find((p: any) => p.entryPointType === "video")?.uri || ""; return /^https:\/\//.test(u) ? u : null; };
 const strip = (t: string) => String(t || "").replace(/^Due: /, "").replace(/^⚡ /, "");
 
+// Supabase hands back at most 1,000 rows per request, and a busy calendar has more cards than that: read in pages.
+async function every(q: () => any) {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await q().range(from, from + 999);
+    if (error) throw error;
+    out.push(...(data || []));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
 async function pull(userId: string) {
   const { data: accs } = await admin.from("google_accounts").select("board").eq("user_id", userId);
-  const { data: rows } = await admin.from("cards").select("id, doc").eq("user_id", userId);
-  const { data: maps } = await admin.from("google_sync_map").select("*").eq("user_id", userId);
+  const rows = await every(() => admin.from("cards").select("id, doc").eq("user_id", userId).order("id"));
+  const maps = await every(() => admin.from("google_sync_map").select("*").eq("user_id", userId).order("card_id").order("kind"));
   const cards = new Map((rows || []).map(r => [r.id, r.doc as Doc]));
   const byGoogle = new Map((maps || []).map(m => [m.board + ":" + m.kind[0] + ":" + m.google_id, m]));
   const now = new Date(), from = new Date(now.getTime() - 14 * 864e5).toISOString(), to = new Date(now.getTime() + 183 * 864e5).toISOString();
@@ -254,7 +265,7 @@ async function pull(userId: string) {
   for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
   for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
   for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
-  return { changed, report, version: 3 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
+  return { changed, report, version: 4 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
 }
 
 Deno.serve(async (req) => {
