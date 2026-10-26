@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1792995843">
+<meta name="build" content="1792998130">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1384,10 +1384,13 @@ async function openGoogle() {
 
 // Brings Google Calendar events and Google Tasks into Orbit: on open, every 5 minutes, and when the app comes back to the front.
 let lastPull = 0;
+const SYNC_VERSION = 3; // the google-sync version this app expects (3 = Meet links)
 async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();
-  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; pullReport = data?.report || null; if (data?.error) pullErr = data.error; return data?.changed ?? 0; }
+  try { const { data, error } = await SB.functions.invoke("google-sync", { body: { action: "pull" } }); if (error) throw error; pullReport = data?.report || null; if (data?.error) pullErr = data.error;
+    if (!data?.error && (data?.version || 0) < SYNC_VERSION && !pullGoogle.warned) { pullGoogle.warned = true; toast("Google sync is out of date: redeploy google-sync in Supabase to get Meet links", { label: "OK", fn: () => {} }); }
+    return data?.changed ?? 0; }
   catch (e) { pullErr = e.message || ""; try { pullErr = (await e.context?.json())?.error || (e.context?.status ? "HTTP " + e.context.status : pullErr); } catch (er) {} return -1; }
 }
 let pullErr = "", pullReport = null;

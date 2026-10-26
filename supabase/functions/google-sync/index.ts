@@ -254,7 +254,7 @@ async function pull(userId: string) {
   for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
   for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
   for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
-  return { changed, report };
+  return { changed, report, version: 3 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
 }
 
 Deno.serve(async (req) => {
