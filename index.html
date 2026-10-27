@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1793053991">
+<meta name="build" content="1793088262">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -130,6 +130,14 @@ main { padding-block: 14px 32px; }
 .cal { display: grid; gap: 10px; margin-top: 18px; }
 .todaybtn { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .sortbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: color-mix(in srgb, var(--brand) 16%, var(--surface)); border: 1px solid color-mix(in srgb, var(--brand) 45%, var(--line)); border-radius: 12px; padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
+.qin { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 16px; }
+.qres { display: grid; gap: 2px; min-height: 40vh; align-content: start; }
+.qhit { display: grid; gap: 4px; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 10px 4px; cursor: pointer; color: var(--ink); font: inherit; }
+.qhit:hover { background: var(--bg); }
+.qhit .qt { font-weight: 500; overflow-wrap: anywhere; }
+.qhit.done .qt { text-decoration: line-through; color: var(--muted); }
+.qhit mark { background: color-mix(in srgb, var(--brand) 65%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+.side .ssearch { border: 1px solid var(--side-hover); color: var(--side-muted); margin-top: -12px; }
 .sortlist { display: grid; gap: 2px; max-height: 55vh; overflow-y: auto; margin: 10px 0; }
 .srow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
 .srow .sname { min-width: 0; font-size: 14px; } .srow .dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
@@ -457,6 +465,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
   <div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div>
   <button class="btn primary" type="button" id="newTask" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New task</button>
   <button class="btn ai" type="button" data-act="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>Ask Orbit AI</button>
+  <button class="sitem ssearch" type="button" data-act="search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><span>Search</span><span class="n">⌘K</span></button>
   <nav class="snav" id="sideNav"></nav>
   <div><div class="slabel">Areas</div><div class="snav" id="sideAreas"></div></div>
   <div class="sfoot">
@@ -468,7 +477,7 @@ body.authed .toast { bottom: calc(146px + env(safe-area-inset-bottom, 0px)); }
 </aside>
 <div class="shell">
 <header class="mtop wrap navhost">
-  <div class="mrow"><div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div><span class="mbtns"><button class="iconbtn aibtn" type="button" data-act="ai" aria-label="Ask Orbit AI"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button><button class="iconbtn" type="button" data-act="refresh" id="refreshBtn" aria-label="Refresh" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button><button class="iconbtn" type="button" data-act="menu" id="menuBtn" aria-label="Menu" hidden><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg></button></span></div>
+  <div class="mrow"><div class="brand"><img src="icon-192.png" alt="">Orbit Ai</div><span class="mbtns"><button class="iconbtn" type="button" data-act="search" aria-label="Search"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></button><button class="iconbtn aibtn" type="button" data-act="ai" aria-label="Ask Orbit AI"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg></button><button class="iconbtn" type="button" data-act="refresh" id="refreshBtn" aria-label="Refresh" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg></button><button class="iconbtn" type="button" data-act="menu" id="menuBtn" aria-label="Menu" hidden><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.2-3.5 4-5 7-5s5.8 1.5 7 5"/></svg></button></span></div>
   <div class="chips" id="chips"></div>
 </header>
 
@@ -974,6 +983,7 @@ async function addTask(text) {
 }
 
 document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); if (db) openSearch(); return; }
   if (e.key === "/" && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); if (!readOnly && db) $("#newTask").click(); }
   if (e.key === "Escape") closeSheet();
 });
@@ -1012,8 +1022,34 @@ function openSort() {
     for (const c of changed) await saveCard(c);
   };
 }
+// Search everything: tasks, projects and Google events, in every area. Matches every word in the title, notes or guests.
+let lastQuery = "";
+function openSearch() {
+  openSheet(`<h3>Search</h3><input id="q-in" class="qin" type="search" placeholder="Search tasks, projects and events" value="${esc(lastQuery)}" autocomplete="off" enterkeyhint="search"><div id="q-res" class="qres"></div>`);
+  const inp = $("#q-in"); inp.focus(); inp.select();
+  const t = todayIso();
+  const when = c => c.day ? fmtDay(c.day, { weekday: "short", day: "numeric", month: "short", ...(c.day.slice(0, 4) !== t.slice(0, 4) ? { year: "numeric" } : {}) }) + (c.time ? ", " + tm(c.time) : "") : c.due ? "Due " + fmtDay(c.due, { day: "numeric", month: "short" }) : "";
+  const kindOf = c => c.src === "gcal" ? "Event" : isReminder(c) ? "Reminder" : "Project";
+  // Open things first (soonest first), then upcoming events, then past events and done tasks (most recent first).
+  const rank = c => c.col === "done" ? 3 : c.src === "gcal" ? ((c.endDay || c.day) >= t ? 1 : 2) : 0;
+  const mark = (txt, words) => { let h = esc(txt); for (const w of words) h = h.replace(new RegExp("(" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/&/g, "&amp;") + ")", "ig"), "<mark>$1</mark>"); return h; };
+  const run = () => {
+    const q = lastQuery = inp.value.trim(), words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) { $("#q-res").innerHTML = `<p class="hint">Type a word from a task, project or event. Searches every area.</p>`; return; }
+    const hits = dedupeEvents(cards).filter(c => { const hay = [c.title, c.note, ...(c.guests || [])].join(" ").toLowerCase(); return words.every(w => hay.includes(w)); })
+      .sort((a, b) => rank(a) - rank(b) || (rank(a) >= 2 ? (b.day || "").localeCompare(a.day || "") : (a.day || a.due || "9").localeCompare(b.day || b.due || "9")) || abc(a, b));
+    $("#q-res").innerHTML = hits.length ? hits.slice(0, 80).map(c => `<button class="qhit ${c.col === "done" ? "done" : ""}" type="button" data-qopen="${esc(c.id)}">
+        <span class="qt">${mark(c.title || "", words)}</span>
+        <span class="meta"><span class="tag"><span class="dot" style="background:${esc(boardOf(c.board).color)}"></span>${esc(boardOf(c.board).name)}</span><span>${kindOf(c)}${c.col === "done" ? " · done" : ""}</span>${when(c) ? `<span>${when(c)}</span>` : ""}</span></button>`).join("") + (hits.length > 80 ? `<p class="hint">Showing 80 of ${hits.length}. Add another word to narrow it down.</p>` : "")
+      : `<p class="hint">Nothing matches "${esc(q)}".</p>`;
+  };
+  inp.addEventListener("input", run); run();
+  $("#q-res").addEventListener("click", e => { const h = e.target.closest("[data-qopen]"); if (!h) return; const c = cards.find(x => x.id === h.dataset.qopen); if (!c) return;
+    closeSheet(); if (c.day) { selDay = c.day; render(); } openCard(c.id); });
+}
 function openMenu() {
   openSheet(`<h3>${esc(userEmail || "Menu")}</h3><div class="menu">
+    <button class="mi" type="button" data-act="search">Search</button>
     <button class="mi" type="button" data-act="ai">Ask Orbit AI</button>
     <button class="mi" type="button" data-act="paste">Paste a list</button>
     <button class="mi" type="button" data-act="sort">Sort into reminders and projects</button>
@@ -1033,6 +1069,7 @@ document.addEventListener("click", e => {
     if (act === "paste") return openPasteList();
     if (act === "sort") return openSort();
     if (act === "ai") return openAI();
+    if (act === "search") return openSearch();
     if (act === "signout") return $("#signOut").click();
     return;
   }
