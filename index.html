@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1793088262">
+<meta name="build" content="1793093303">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -777,13 +777,13 @@ function renderToday(shown) {
       <div class="r">${selDay !== t ? `<button class="btn sm todaybtn" type="button" data-goto="${t}">Back to today</button>` : ""}<label class="hint" for="t-pick">Go to date</label><input type="date" id="t-pick" value="${selDay}"></div>
     </div>
     <div class="daycols"><div class="daymain">
-    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from your list.</div>`}</div></section>
+    <section class="sect"><div class="tlist">${readOnly ? "" : `<form class="trow addrow" id="dayAdd" autocomplete="off"><span class="plus" aria-hidden="true">+</span><input id="dayAddIn" type="text" placeholder="Add a task for ${selDay === t ? "today" : esc(fmtDay(selDay, { weekday: "short", day: "numeric", month: "short" }))}" aria-label="Add a task for this day"><button class="btn sm primary" type="submit">Add</button></form>`}${planned.map(c => rowHTML(c, c.col === "done" ? "" : `<button class="btn sm" type="button" data-shift="${esc(c.id)}" title="Move to the next day">→ ${selDay === t ? "Tomorrow" : "Next day"}</button><button class="btn sm" type="button" data-unplan="${esc(c.id)}" aria-label="Move ${esc(c.title)} off this day" title="Take off this day (keeps the task)">Later</button>`)).join("") || `<div class="tempty">Nothing planned for this day yet. Type a task above, or add one from No date yet below.</div>`}</div></section>
     ${dayEvents.length && !full ? `<section class="sect agenda"><h3>Events</h3>${dayEvents.map(agItem).join("")}</section>` : ""}
     </div><div class="dayside">
     ${carried.length ? `<section class="sect"><h3>Not finished from earlier days <button class="btn sm primary" type="button" data-planall="1">Move all to today</button></h3><div class="tlist">${carried.map(c => rowHTML(c, `<button class="btn sm" type="button" data-plan="${esc(c.id)}">→ Today</button>`)).join("")}</div></section>` : ""}
     ${view === "dash" ? agendaHTML(shown) : ""}
     ${dueHere.length ? `<section class="sect"><h3>Due this day</h3><div class="tlist">${dueHere.map(c => rowHTML(c, add(c))).join("")}</div></section>` : ""}
-    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>Add from your list (${others.length})</summary><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
+    ${others.length ? `<details class="sect" id="pick" ${pickOpen ? "open" : ""}><summary>No date yet (${others.length})</summary><p class="hint">Open tasks and projects that aren't on any day. Tap + Add to put one on ${selDay === t ? "today" : "this day"}.</p><div class="tlist">${others.map(c => rowHTML(c, add(c))).join("")}</div></details>` : ""}
     </div></div>
     ${full ? renderCal(shown) : ""}`;
   const sc = $("#today .cal-scroll");
@@ -1421,7 +1421,7 @@ async function openGoogle() {
 
 // Brings Google Calendar events and Google Tasks into Orbit: on open, every 5 minutes, and when the app comes back to the front.
 let lastPull = 0;
-const SYNC_VERSION = 4; // the google-sync version this app expects (3 = Meet links, 4 = reads past 1,000 cards)
+const SYNC_VERSION = 5; // the google-sync version this app expects (3 = Meet links, 4 = reads past 1,000 cards, 5 = clearing a date clears it in Google)
 async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();

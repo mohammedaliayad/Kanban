@@ -57,7 +57,9 @@ function wanted(d: Doc): Record<string, Want> {
   if (d.src === "gtask") {
     const open = d.col !== "done";
     const body: Record<string, unknown> = { title: d.title, notes: d.note || "", status: open ? "needsAction" : "completed" };
-    if (d.day) body.due = `${d.day}T00:00:00.000Z`;
+    // Clearing the date in Orbit (e.g. turning it into a Kanban project) clears it in Google too; leaving due out
+    // of the update kept Google's old date, and the next pull brought it back.
+    body.due = d.day ? `${d.day}T00:00:00.000Z` : null;
     out.task = { body, hash: JSON.stringify(["g", d.title, d.day || "", d.note || "", open]) };
     return out;
   }
@@ -265,7 +267,7 @@ async function pull(userId: string) {
   for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
   for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
   for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
-  return { changed, report, version: 4 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
+  return { changed, report, version: 5 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
 }
 
 Deno.serve(async (req) => {
