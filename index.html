@@ -4,7 +4,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Orbit Ai">
 <meta name="theme-color" content="#ffe147">
-<meta name="build" content="1793093303">
+<meta name="build" content="1794115330">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -1421,7 +1421,7 @@ async function openGoogle() {
 
 // Brings Google Calendar events and Google Tasks into Orbit: on open, every 5 minutes, and when the app comes back to the front.
 let lastPull = 0;
-const SYNC_VERSION = 5; // the google-sync version this app expects (3 = Meet links, 4 = reads past 1,000 cards, 5 = clearing a date clears it in Google)
+const SYNC_VERSION = 6; // the google-sync version this app expects (3 = Meet links, 4 = reads past 1,000 cards, 5 = clearing a date clears it in Google, 6 = projects leave Google Tasks)
 async function pullGoogle(force) {
   if (!db || readOnly || (!force && Date.now() - lastPull < 60000)) return 0;
   lastPull = Date.now();

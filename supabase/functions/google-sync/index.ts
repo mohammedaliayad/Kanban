@@ -54,7 +54,11 @@ function wanted(d: Doc): Record<string, Want> {
     out.event = { body, hash: JSON.stringify(["g", d.title, d.day, d.time || "", end, d.endDay || "", d.note || "", guests]) };
     return out;
   }
+  // Projects live on the board, not in Google Tasks: a reminder turned into a project leaves Google Tasks
+  // (its due date and any timed event still go to the calendar).
+  const project = d.kind === "project";
   if (d.src === "gtask") {
+    if (project) return out;
     const open = d.col !== "done";
     const body: Record<string, unknown> = { title: d.title, notes: d.note || "", status: open ? "needsAction" : "completed" };
     // Clearing the date in Orbit (e.g. turning it into a Kanban project) clears it in Google too; leaving due out
@@ -78,7 +82,7 @@ function wanted(d: Doc): Record<string, Want> {
     if (guests.length) body.attendees = guests.map(email => ({ email }));
     out.event = { body, hash: JSON.stringify(guests.length ? [title, d.day, d.time, end, desc, guests] : [title, d.day, d.time, end, desc]) };
   }
-  if (d.day && !d.time) {
+  if (d.day && !d.time && !project) {
     const body = { title, notes: desc, due: `${d.day}T00:00:00.000Z`, status: open ? "needsAction" : "completed" };
     out.task = { body, hash: JSON.stringify([title, d.day, desc, open]) };
   }
@@ -195,6 +199,11 @@ async function pull(userId: string) {
   const unmap = async (id: string, kind: string) => { mapQ.delete(id + ":" + kind); await admin.from("google_sync_map").delete().eq("card_id", id).eq("kind", kind); };
   const drop = async (id: string) => { dropQ.add(id); cardQ.delete(id); cards.delete(id); changed++; };
 
+  // Projects that are still in Google Tasks (made into projects before this rule, or while a save was missed) come out now.
+  for (const m of maps || []) {
+    if (m.kind === "task" && cards.get(m.card_id)?.kind === "project") { await remove(m); byGoogle.delete(m.board + ":t:" + m.google_id); }
+  }
+
   for (const { board } of accs || []) {
     const tok = await accessToken(userId, board); if (!tok) { report.push({ board, error: "Couldn't sign in to Google. Reconnect this area." }); continue; }
     const rep: any = { board, lists: [] }; report.push(rep);
@@ -255,7 +264,10 @@ async function pull(userId: string) {
         if (JSON.stringify(next) !== JSON.stringify(doc)) await put(m.card_id, next, "task", t.gid);
         continue;
       }
-      const id = `gt-${board}-${t.gid}`, doc = cards.get(id);
+      // A Google task card that was made a project and back again gets a new Google task, still linked to the same card.
+      const id = m?.card_id || `gt-${board}-${t.gid}`, doc = cards.get(id);
+      // A project taken out of Google Tasks: its deleted task must not delete the card.
+      if (doc?.kind === "project") continue;
       if (gone || (!doc && (done || !t.title))) { if (gone && doc) await drop(id); continue; }
       const next: Doc = { ...(doc || { col: "inbox", order: -Date.now() / 1e6, urgent: false, important: false, due: null, checklist: [], created: new Date().toISOString() }), src: "gtask", board, title: t.title, note: t.notes || "", day } as Doc;
       if (done && next.col !== "done") { next.prevCol = next.col; next.col = "done"; next.doneAt = new Date().toISOString(); }
@@ -267,7 +279,7 @@ async function pull(userId: string) {
   for (const c of chunks([...mapQ.values()])) { const { error } = await admin.from("google_sync_map").upsert(c); if (error) throw error; }
   for (const c of chunks([...cardQ.values()])) { const { error } = await admin.from("cards").upsert(c); if (error) throw error; }
   for (const c of chunks([...dropQ])) { await admin.from("google_sync_map").delete().in("card_id", c); await admin.from("cards").delete().in("id", c); }
-  return { changed, report, version: 5 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
+  return { changed, report, version: 6 }; // bump with the app's SYNC_VERSION when the pull adds something the app needs
 }
 
 Deno.serve(async (req) => {
